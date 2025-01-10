@@ -1,0 +1,199 @@
+From a58dceaef31c302a916369505796c375a1c01a29 Mon Sep 17 00:00:00 2001
+From: Denys Haryachyy <garyachy@gmail.com>
+Date: Wed, 24 Jul 2024 08:35:25 +0000
+Subject: [PATCH 3/3] Resync ip fib with Linux state.
+
+A new CLI and API file option is available:
+
+```
+lcp resync
+```
+
+```
+autoreply autoendian define lcp_resync
+{
+  u32 client_index;
+  u32 context;
+};
+```
+
+The common functionality behind the API and CLI command was designed to do the following:
+1. Remove IPv4 and IPv6 routes installed previously by linux-cp plugin
+2. Execute Netlink DUMP for all network objects, i.e. routes, links, neighbors, nexthops, addresses
+---
+ src/plugins/linux-cp/lcp.api         | 10 ++++++++++
+ src/plugins/linux-cp/lcp_api.c       | 12 ++++++++++++
+ src/plugins/linux-cp/lcp_cli.c       | 15 +++++++++++++++
+ src/plugins/linux-cp/lcp_interface.c | 11 +++++++++++
+ src/plugins/linux-cp/lcp_interface.h |  5 +++++
+ src/plugins/linux-cp/lcp_nl.c        | 18 +++++++++++++++++-
+ 6 files changed, 70 insertions(+), 1 deletion(-)
+
+diff --git a/src/plugins/linux-cp/lcp.api b/src/plugins/linux-cp/lcp.api
+index e7eaa5a36..67ade242e 100644
+--- a/src/plugins/linux-cp/lcp.api
++++ b/src/plugins/linux-cp/lcp.api
+@@ -200,6 +200,16 @@ autoreply define lcp_itf_pair_replace_end
+   u32 context;
+ };
+ 
++/** \brief Resync a Linux Conrol Plane with Linux
++    @param client_index - opaque cookie to identify the sender
++    @param context - sender context, to match reply w/ request
++*/
++autoreply autoendian define lcp_resync
++{
++  u32 client_index;
++  u32 context;
++};
++
+ /*
+  * Linux-CP Error counters/messages
+  */
+diff --git a/src/plugins/linux-cp/lcp_api.c b/src/plugins/linux-cp/lcp_api.c
+index 74421230e..c681337c7 100644
+--- a/src/plugins/linux-cp/lcp_api.c
++++ b/src/plugins/linux-cp/lcp_api.c
+@@ -280,6 +280,18 @@ vl_api_lcp_itf_pair_replace_end_t_handler (
+   REPLY_MACRO (VL_API_LCP_ITF_PAIR_REPLACE_END_REPLY);
+ }
+ 
++static void
++vl_api_lcp_resync_t_handler (vl_api_lcp_resync_t *mp)
++{
++  vl_api_lcp_resync_reply_t *rmp;
++  int rv = 0;
++  vlib_main_t *vm = vlib_get_main ();
++
++  lcp_resync_state (vm);
++
++  REPLY_MACRO_END (VL_API_LCP_RESYNC_REPLY);
++}
++
+ /*
+  * Set up the API message handling tables
+  */
+diff --git a/src/plugins/linux-cp/lcp_cli.c b/src/plugins/linux-cp/lcp_cli.c
+index c7f0658ee..58a1cb66c 100644
+--- a/src/plugins/linux-cp/lcp_cli.c
++++ b/src/plugins/linux-cp/lcp_cli.c
+@@ -349,6 +349,21 @@ VLIB_CLI_COMMAND (lcp_itf_pair_show_cmd_node, static) = {
+   .is_mp_safe = 1,
+ };
+ 
++static clib_error_t *
++lcp_resync_command_fn (vlib_main_t *vm, unformat_input_t *input,
++				vlib_cli_command_t *cmd)
++{
++  lcp_resync_state (vm);
++
++  return NULL;
++}
++
++VLIB_CLI_COMMAND (lcp_resync_command, static) = {
++  .path = "lcp resync",
++  .short_help = "lcp resync",
++  .function = lcp_resync_command_fn,
++};
++
+ clib_error_t *
+ lcp_cli_init (vlib_main_t *vm)
+ {
+diff --git a/src/plugins/linux-cp/lcp_interface.c b/src/plugins/linux-cp/lcp_interface.c
+index d5e221226..41883f0bb 100644
+--- a/src/plugins/linux-cp/lcp_interface.c
++++ b/src/plugins/linux-cp/lcp_interface.c
+@@ -1177,6 +1177,17 @@ lcp_itf_pair_replace_end (void)
+   return (0);
+ }
+ 
++void
++lcp_resync_state (vlib_main_t *vm)
++{
++  /* Send event of type NL_EVENT_SYNC to linux-cp-netlink node.
++   * As a result all ip fib entries installed by this node will be removed from VPP.
++   * And Netlink full dump will be initiated.
++   */
++  vlib_node_t *n = vlib_get_node_by_name (vm, (u8 *) "linux-cp-netlink-process");
++  vlib_process_signal_event (vm, n->index, 2, 0);
++}
++
+ static clib_error_t *
+ lcp_itf_pair_link_up_down (vnet_main_t *vnm, u32 hw_if_index, u32 flags)
+ {
+diff --git a/src/plugins/linux-cp/lcp_interface.h b/src/plugins/linux-cp/lcp_interface.h
+index cfcd3925a..bb534308a 100644
+--- a/src/plugins/linux-cp/lcp_interface.h
++++ b/src/plugins/linux-cp/lcp_interface.h
+@@ -136,6 +136,11 @@ extern void lcp_itf_pair_walk (lcp_itf_pair_walk_cb_t cb, void *ctx);
+ extern int lcp_itf_pair_replace_begin (void);
+ extern int lcp_itf_pair_replace_end (void);
+ 
++/**
++ * Resync with Linux state
++ */
++extern void lcp_resync_state (vlib_main_t *vm);
++
+ /**
+  * Retreive the pair in the DP
+  */
+diff --git a/src/plugins/linux-cp/lcp_nl.c b/src/plugins/linux-cp/lcp_nl.c
+index 85b644700..0b2536ccc 100644
+--- a/src/plugins/linux-cp/lcp_nl.c
++++ b/src/plugins/linux-cp/lcp_nl.c
+@@ -43,6 +43,7 @@ typedef enum nl_status_t_
+ {
+   NL_STATUS_NOTIF_PROC,
+   NL_STATUS_SYNC,
++  NL_STATUS_USER_SYNC
+ } nl_status_t;
+ 
+ typedef enum nl_sock_type_t_
+@@ -66,6 +67,7 @@ typedef enum nl_event_type_t_
+ {
+   NL_EVENT_READ,
+   NL_EVENT_ERR,
++  NL_EVENT_SYNC
+ } nl_event_type_t;
+ 
+ typedef struct nl_main
+@@ -581,6 +583,12 @@ nl_route_process (vlib_main_t *vm, vlib_node_runtime_t *node,
+ 			    DAY_F64;
+ 	      break;
+ 
++	    /* Initiate synchronization if requested by user
++	     */
++	    case NL_EVENT_SYNC:
++	      nm->nl_status = NL_STATUS_USER_SYNC;
++	      break;
++
+ 	    /* Initiate synchronization if there was an error polling or
+ 	     * reading the notification socket
+ 	     */
+@@ -592,7 +600,7 @@ nl_route_process (vlib_main_t *vm, vlib_node_runtime_t *node,
+ 	      NL_ERROR ("Unknown event type: %u", (u32) event_type);
+ 	    }
+ 	}
+-      else if (nm->nl_status == NL_STATUS_SYNC)
++      else if (nm->nl_status == NL_STATUS_SYNC || nm->nl_status == NL_STATUS_USER_SYNC)
+ 	{
+ 	  /* Stop processing notifications - close the notification socket and
+ 	   * discard all messages that are currently in the queue
+@@ -600,6 +608,14 @@ nl_route_process (vlib_main_t *vm, vlib_node_runtime_t *node,
+ 	  lcp_nl_close_socket ();
+ 	  lcp_nl_route_discard_msgs ();
+ 
++	    /* Clean VPP routing tables
++	     */
++	    if (nm->nl_status == NL_STATUS_USER_SYNC)
++	  {
++		  nl_route_sync_begin();
++		  nl_route_sync_end();
++	  }
++
+ 	  /* Wait some time before next synchronization attempt. Allows to
+ 	   * reduce the number of failed attempts that stall the main thread by
+ 	   * waiting out the notification storm
+-- 
+2.39.5
+
