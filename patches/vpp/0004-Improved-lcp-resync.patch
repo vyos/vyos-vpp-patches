@@ -1,0 +1,342 @@
+From b1e6096bc53507fe9e16a8bc25428ff2caf9048d Mon Sep 17 00:00:00 2001
+From: Denys Haryachyy <garyachy@gmail.com>
+Date: Wed, 29 Jan 2025 11:57:01 +0200
+Subject: [PATCH] LCP: Improved lcp resync CLI and API to wait until Netlink
+ sync is finished.
+
+---
+ src/plugins/linux-cp/CMakeLists.txt  |  4 ++
+ src/plugins/linux-cp/lcp.api         | 10 -----
+ src/plugins/linux-cp/lcp_api.c       | 12 ------
+ src/plugins/linux-cp/lcp_cli.c       | 15 -------
+ src/plugins/linux-cp/lcp_interface.c | 11 -----
+ src/plugins/linux-cp/lcp_interface.h |  5 ---
+ src/plugins/linux-cp/lcp_nl.api      | 38 +++++++++++++++++
+ src/plugins/linux-cp/lcp_nl.c        | 38 +++++++++++++++++
+ src/plugins/linux-cp/lcp_nl.h        |  5 +++
+ src/plugins/linux-cp/lcp_nl_api.c    | 63 ++++++++++++++++++++++++++++
+ 10 files changed, 148 insertions(+), 53 deletions(-)
+ create mode 100644 src/plugins/linux-cp/lcp_nl.api
+ create mode 100644 src/plugins/linux-cp/lcp_nl_api.c
+
+diff --git a/src/plugins/linux-cp/CMakeLists.txt b/src/plugins/linux-cp/CMakeLists.txt
+index c891689b4..14eab68f7 100644
+--- a/src/plugins/linux-cp/CMakeLists.txt
++++ b/src/plugins/linux-cp/CMakeLists.txt
+@@ -70,9 +70,13 @@ add_vpp_plugin(linux_cp_unittest
+ 
+ add_vpp_plugin(linux_nl
+   SOURCES
++  lcp_nl_api.c
+   lcp_router.c
+   lcp_nl.c
+ 
++  API_FILES
++  lcp_nl.api
++
+   LINK_LIBRARIES
+   lcp
+ )
+diff --git a/src/plugins/linux-cp/lcp.api b/src/plugins/linux-cp/lcp.api
+index 67ade242e..e7eaa5a36 100644
+--- a/src/plugins/linux-cp/lcp.api
++++ b/src/plugins/linux-cp/lcp.api
+@@ -200,16 +200,6 @@ autoreply define lcp_itf_pair_replace_end
+   u32 context;
+ };
+ 
+-/** \brief Resync a Linux Conrol Plane with Linux
+-    @param client_index - opaque cookie to identify the sender
+-    @param context - sender context, to match reply w/ request
+-*/
+-autoreply autoendian define lcp_resync
+-{
+-  u32 client_index;
+-  u32 context;
+-};
+-
+ /*
+  * Linux-CP Error counters/messages
+  */
+diff --git a/src/plugins/linux-cp/lcp_api.c b/src/plugins/linux-cp/lcp_api.c
+index c681337c7..74421230e 100644
+--- a/src/plugins/linux-cp/lcp_api.c
++++ b/src/plugins/linux-cp/lcp_api.c
+@@ -280,18 +280,6 @@ vl_api_lcp_itf_pair_replace_end_t_handler (
+   REPLY_MACRO (VL_API_LCP_ITF_PAIR_REPLACE_END_REPLY);
+ }
+ 
+-static void
+-vl_api_lcp_resync_t_handler (vl_api_lcp_resync_t *mp)
+-{
+-  vl_api_lcp_resync_reply_t *rmp;
+-  int rv = 0;
+-  vlib_main_t *vm = vlib_get_main ();
+-
+-  lcp_resync_state (vm);
+-
+-  REPLY_MACRO_END (VL_API_LCP_RESYNC_REPLY);
+-}
+-
+ /*
+  * Set up the API message handling tables
+  */
+diff --git a/src/plugins/linux-cp/lcp_cli.c b/src/plugins/linux-cp/lcp_cli.c
+index 58a1cb66c..c7f0658ee 100644
+--- a/src/plugins/linux-cp/lcp_cli.c
++++ b/src/plugins/linux-cp/lcp_cli.c
+@@ -349,21 +349,6 @@ VLIB_CLI_COMMAND (lcp_itf_pair_show_cmd_node, static) = {
+   .is_mp_safe = 1,
+ };
+ 
+-static clib_error_t *
+-lcp_resync_command_fn (vlib_main_t *vm, unformat_input_t *input,
+-				vlib_cli_command_t *cmd)
+-{
+-  lcp_resync_state (vm);
+-
+-  return NULL;
+-}
+-
+-VLIB_CLI_COMMAND (lcp_resync_command, static) = {
+-  .path = "lcp resync",
+-  .short_help = "lcp resync",
+-  .function = lcp_resync_command_fn,
+-};
+-
+ clib_error_t *
+ lcp_cli_init (vlib_main_t *vm)
+ {
+diff --git a/src/plugins/linux-cp/lcp_interface.c b/src/plugins/linux-cp/lcp_interface.c
+index 41883f0bb..d5e221226 100644
+--- a/src/plugins/linux-cp/lcp_interface.c
++++ b/src/plugins/linux-cp/lcp_interface.c
+@@ -1177,17 +1177,6 @@ lcp_itf_pair_replace_end (void)
+   return (0);
+ }
+ 
+-void
+-lcp_resync_state (vlib_main_t *vm)
+-{
+-  /* Send event of type NL_EVENT_SYNC to linux-cp-netlink node.
+-   * As a result all ip fib entries installed by this node will be removed from VPP.
+-   * And Netlink full dump will be initiated.
+-   */
+-  vlib_node_t *n = vlib_get_node_by_name (vm, (u8 *) "linux-cp-netlink-process");
+-  vlib_process_signal_event (vm, n->index, 2, 0);
+-}
+-
+ static clib_error_t *
+ lcp_itf_pair_link_up_down (vnet_main_t *vnm, u32 hw_if_index, u32 flags)
+ {
+diff --git a/src/plugins/linux-cp/lcp_interface.h b/src/plugins/linux-cp/lcp_interface.h
+index bb534308a..cfcd3925a 100644
+--- a/src/plugins/linux-cp/lcp_interface.h
++++ b/src/plugins/linux-cp/lcp_interface.h
+@@ -136,11 +136,6 @@ extern void lcp_itf_pair_walk (lcp_itf_pair_walk_cb_t cb, void *ctx);
+ extern int lcp_itf_pair_replace_begin (void);
+ extern int lcp_itf_pair_replace_end (void);
+ 
+-/**
+- * Resync with Linux state
+- */
+-extern void lcp_resync_state (vlib_main_t *vm);
+-
+ /**
+  * Retreive the pair in the DP
+  */
+diff --git a/src/plugins/linux-cp/lcp_nl.api b/src/plugins/linux-cp/lcp_nl.api
+new file mode 100644
+index 000000000..ab34c523f
+--- /dev/null
++++ b/src/plugins/linux-cp/lcp_nl.api
+@@ -0,0 +1,38 @@
++/* Hey Emacs use -*- mode: C -*- */
++/*
++ * Linux Control Plane API
++ *
++ * Copyright 2020 Rubicon Communications, LLC.
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at:
++ *
++ *     http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++option version = "1.0.0";
++
++import "vnet/interface_types.api";
++
++/** \brief Resync a Linux Conrol Plane with Linux
++    @param client_index - opaque cookie to identify the sender
++    @param context - sender context, to match reply w/ request
++*/
++autoreply autoendian define lcp_nl_resync
++{
++  u32 client_index;
++  u32 context;
++};
++
++/*
++ * Local Variables:
++ * eval: (c-set-style "gnu")
++ * End:
++ */
+diff --git a/src/plugins/linux-cp/lcp_nl.c b/src/plugins/linux-cp/lcp_nl.c
+index 0b2536ccc..34ce6f37e 100644
+--- a/src/plugins/linux-cp/lcp_nl.c
++++ b/src/plugins/linux-cp/lcp_nl.c
+@@ -92,6 +92,8 @@ typedef struct nl_main
+   u32 sync_batch_delay_ms;
+   u32 sync_attempt_delay_ms;
+ 
++  volatile bool is_syncing;
++
+ } nl_main_t;
+ 
+ #define NL_RX_BUF_SIZE_DEF    (1 << 27) /* 128 MB */
+@@ -710,6 +712,7 @@ nl_route_process (vlib_main_t *vm, vlib_node_runtime_t *node,
+ #define _(stype, mtype, tname, fn) lcp_nl_close_sync_socket (stype);
+ 	  foreach_sock_type
+ #undef _
++	  nm->is_syncing = 0;
+ 	}
+       else
+ 	NL_ERROR ("Unknown status: %d", nm->nl_status);
+@@ -1019,6 +1022,41 @@ lcp_nl_close_sync_socket (nl_sock_type_t sock_type)
+     }
+ }
+ 
++void
++lcp_resync_state (vlib_main_t *vm)
++{
++  nl_main_t *nm = &nl_main;
++  nm->is_syncing = 1;
++
++  /* Send event of type NL_EVENT_SYNC to linux-cp-netlink node.
++   * As a result all ip fib entries installed by this node will be removed from
++   * VPP. And Netlink full dump will be initiated.
++   */
++  vlib_node_t *n =
++    vlib_get_node_by_name (vm, (u8 *) "linux-cp-netlink-process");
++  vlib_process_signal_event (vm, n->index, 2, 0);
++
++  while (nm->is_syncing)
++    {
++      vlib_process_suspend (vm, 1);
++    }
++}
++
++static clib_error_t *
++lcp_resync_command_fn (vlib_main_t *vm, unformat_input_t *input,
++		       vlib_cli_command_t *cmd)
++{
++  lcp_resync_state (vm);
++
++  return NULL;
++}
++
++VLIB_CLI_COMMAND (lcp_resync_command, static) = {
++  .path = "lcp resync",
++  .short_help = "lcp resync",
++  .function = lcp_resync_command_fn,
++};
++
+ #include <vnet/plugin/plugin.h>
+ clib_error_t *
+ lcp_nl_init (vlib_main_t *vm)
+diff --git a/src/plugins/linux-cp/lcp_nl.h b/src/plugins/linux-cp/lcp_nl.h
+index 41757e9b9..1b0188d7e 100644
+--- a/src/plugins/linux-cp/lcp_nl.h
++++ b/src/plugins/linux-cp/lcp_nl.h
+@@ -30,6 +30,11 @@ typedef void (*nl_rt_route_add_cb_t) (struct rtnl_route *rn, int is_replace);
+ typedef void (*nl_rt_route_del_cb_t) (struct rtnl_route *rn);
+ typedef void (*nl_rt_route_sync_cb_t) (void);
+ 
++/**
++ * Resync with Linux state
++ */
++extern void lcp_resync_state (vlib_main_t *vm);
++
+ #define NL_RT_COMMON uword is_mp_safe
+ 
+ typedef struct nl_rt_link_t_
+diff --git a/src/plugins/linux-cp/lcp_nl_api.c b/src/plugins/linux-cp/lcp_nl_api.c
+new file mode 100644
+index 000000000..f9005b6fc
+--- /dev/null
++++ b/src/plugins/linux-cp/lcp_nl_api.c
+@@ -0,0 +1,63 @@
++/*
++ * Copyright 2020 Rubicon Communications, LLC.
++ *
++ * SPDX-License-Identifier: Apache-2.0
++ */
++
++#include <sys/socket.h>
++#include <linux/if.h>
++
++#include <vnet/vnet.h>
++#include <vnet/plugin/plugin.h>
++
++#include <vlibapi/api.h>
++#include <vlibmemory/api.h>
++#include <vpp/app/version.h>
++#include <vnet/format_fns.h>
++
++#include <linux-cp/lcp_nl.api_enum.h>
++#include <linux-cp/lcp_nl.api_types.h>
++
++#include <linux-cp/lcp_nl.h>
++
++static u16 lcp_nl_msg_id_base;
++#define REPLY_MSG_ID_BASE lcp_nl_msg_id_base
++#include <vlibapi/api_helper_macros.h>
++
++
++static void
++vl_api_lcp_nl_resync_t_handler (vl_api_lcp_nl_resync_t *mp)
++{
++  vl_api_lcp_nl_resync_reply_t *rmp;
++  int rv = 0;
++  vlib_main_t *vm = vlib_get_main ();
++
++  lcp_resync_state (vm);
++
++  REPLY_MACRO_END (VL_API_LCP_NL_RESYNC_REPLY);
++}
++
++/*
++ * Set up the API message handling tables
++ */
++#include <linux-cp/lcp_nl.api.c>
++
++
++static clib_error_t *
++lcp_nl_api_init (vlib_main_t *vm)
++{
++  /* Ask for a correctly-sized block of API message decode slots */
++  lcp_nl_msg_id_base = setup_message_id_table ();
++
++  return (NULL);
++}
++
++VLIB_INIT_FUNCTION (lcp_nl_api_init);
++
++/*
++ * fd.io coding-style-patch-verification: ON
++ *
++ * Local Variables:
++ * eval: (c-set-style "gnu")
++ * End:
++ */
+-- 
+2.43.0
+
