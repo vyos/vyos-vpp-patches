@@ -1,0 +1,28 @@
+From 28a3d6f27e0237f07d71a305191a814e07550128 Mon Sep 17 00:00:00 2001
+From: zdc <taras@vyos.io>
+Date: Wed, 12 Feb 2025 12:29:57 +0200
+Subject: [PATCH 08/13] linux-cp: Added build dependency for XFRM
+
+Added `libnl-xfrm-3-200` to build dependencies to make build
+`linux-cp` with XFRM possible.
+
+(cherry picked from commit f65022c5ab5e739744e3c4b1ea0a76724f566f50)
+---
+ Makefile | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/Makefile b/Makefile
+index 98866e9be..aa0e99e65 100644
+--- a/Makefile
++++ b/Makefile
+@@ -87,6 +87,7 @@ DEB_DEPENDS += iperf ethtool  # for 'make test TEST=vm_vpp_interfaces'
+ DEB_DEPENDS += libpcap-dev
+ DEB_DEPENDS += tshark
+ DEB_DEPENDS += jq # for extracting test summary from .json report (hs-test)
++DEB_DEPENDS += libnl-xfrm-3-200 # for linux-cp XFRM extension
+ 
+ LIBFFI=libffi6 # works on all but 20.04 and debian-testing
+ ifeq ($(OS_VERSION_ID),24.04)
+-- 
+2.39.5
+

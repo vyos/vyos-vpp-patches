@@ -1,0 +1,25 @@
+From e34ad0e3b7ae9f4e630687e39278e5dd43a43c31 Mon Sep 17 00:00:00 2001
+From: zdc <taras@vyos.io>
+Date: Tue, 11 Feb 2025 20:33:46 +0200
+Subject: [PATCH 12/13] build: Fixed compatibility with build on Debian 12
+
+(cherry picked from commit ca7d5bcd381edb68e9d4ae6ffa915bda4d2c1adf)
+---
+ Makefile | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/Makefile b/Makefile
+index aa0e99e65..d3d433ddb 100644
+--- a/Makefile
++++ b/Makefile
+@@ -122,6 +122,7 @@ else ifeq ($(OS_ID)-$(OS_VERSION_ID),debian-11)
+ else ifeq ($(OS_ID)-$(OS_VERSION_ID),debian-12)
+ 	DEB_DEPENDS += virtualenv
+ 	DEB_DEPENDS += clang-14 clang-format-15
++        DEB_DEPENDS += llvm
+ 	# for extras/scripts/checkstyle.sh
+ 	# TODO: remove once ubuntu 20.04 is deprecated and extras/scripts/checkstyle.sh is upgraded to -15
+ 	export CLANG_FORMAT_VER=15
+-- 
+2.39.5
+
