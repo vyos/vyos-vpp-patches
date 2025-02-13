@@ -1,0 +1,32 @@
+From 8ffe977acdba505759bd6645871ab976c7fbce87 Mon Sep 17 00:00:00 2001
+From: Kommula Shiva Shankar <kshankar@marvell.com>
+Date: Wed, 7 Feb 2024 11:58:17 +0530
+Subject: [PATCH 04/13] linux-cp: initialize sw_if_index variable
+
+Type: fix
+
+Signed-off-by: Kommula Shiva Shankar <kshankar@marvell.com>
+Change-Id: I4c45f9e8010008c98f511a938cdab48335e4a57b
+Reviewed-on: https://sj1git1.cavium.com/c/IP/SW/toolkits/vpp/+/121437
+Reviewed-by: Monendra Singh Kushwaha <kmonendra@marvell.com>
+(cherry picked from commit 5ffb52403e7866297b8bca49a3a5a5ceb3f7bd49)
+---
+ src/plugins/linux-cp/lcp_ipsec.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/plugins/linux-cp/lcp_ipsec.c b/src/plugins/linux-cp/lcp_ipsec.c
+index 79194c226..fe83a948a 100644
+--- a/src/plugins/linux-cp/lcp_ipsec.c
++++ b/src/plugins/linux-cp/lcp_ipsec.c
+@@ -531,7 +531,7 @@ lcp_xfrm_update_tunnel (ip_address_t *saddr, ip_address_t *daddr, u8 dir,
+   u32 sa_out = 0, *sa_ins = NULL;
+   ipsec_sa_t *sai = NULL, *sao = NULL;
+   index_t itpi;
+-  u32 sw_if_index;
++  u32 sw_if_index = ~0;
+   int rv;
+   u8 *s = NULL;
+   u8 instance = xfrmnl_sa_get_reqid (sa);
+-- 
+2.39.5
+

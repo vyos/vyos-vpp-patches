@@ -1,7 +1,7 @@
-From a58dceaef31c302a916369505796c375a1c01a29 Mon Sep 17 00:00:00 2001
+From d66645af550b6916e11f3923c1fbaf511094e1b8 Mon Sep 17 00:00:00 2001
 From: Denys Haryachyy <garyachy@gmail.com>
 Date: Wed, 24 Jul 2024 08:35:25 +0000
-Subject: [PATCH 3/3] Resync ip fib with Linux state.
+Subject: [PATCH 10/13] Resync ip fib with Linux state.
 
 A new CLI and API file option is available:
 
@@ -20,6 +20,8 @@ autoreply autoendian define lcp_resync
 The common functionality behind the API and CLI command was designed to do the following:
 1. Remove IPv4 and IPv6 routes installed previously by linux-cp plugin
 2. Execute Netlink DUMP for all network objects, i.e. routes, links, neighbors, nexthops, addresses
+
+(cherry picked from commit 27746aa7a32a1298e4d954b8f099cbacb26296f2)
 ---
  src/plugins/linux-cp/lcp.api         | 10 ++++++++++
  src/plugins/linux-cp/lcp_api.c       | 12 ++++++++++++
@@ -100,10 +102,10 @@ index c7f0658ee..58a1cb66c 100644
  lcp_cli_init (vlib_main_t *vm)
  {
 diff --git a/src/plugins/linux-cp/lcp_interface.c b/src/plugins/linux-cp/lcp_interface.c
-index d5e221226..41883f0bb 100644
+index 6f2b2e5c9..7f579234a 100644
 --- a/src/plugins/linux-cp/lcp_interface.c
 +++ b/src/plugins/linux-cp/lcp_interface.c
-@@ -1177,6 +1177,17 @@ lcp_itf_pair_replace_end (void)
+@@ -1182,6 +1182,17 @@ lcp_itf_pair_replace_end (void)
    return (0);
  }
  

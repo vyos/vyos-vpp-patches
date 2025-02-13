@@ -1,9 +1,10 @@
-From b1e6096bc53507fe9e16a8bc25428ff2caf9048d Mon Sep 17 00:00:00 2001
+From 9653065d5de59ab76e10f67117896f7ed6478585 Mon Sep 17 00:00:00 2001
 From: Denys Haryachyy <garyachy@gmail.com>
 Date: Wed, 29 Jan 2025 11:57:01 +0200
-Subject: [PATCH] LCP: Improved lcp resync CLI and API to wait until Netlink
- sync is finished.
+Subject: [PATCH 11/13] LCP: Improved lcp resync CLI and API to wait until
+ Netlink sync is finished.
 
+(cherry picked from commit b19375e7e42023a5cdca84f259036574ccd9da77)
 ---
  src/plugins/linux-cp/CMakeLists.txt  |  4 ++
  src/plugins/linux-cp/lcp.api         | 10 -----
@@ -20,23 +21,25 @@ Subject: [PATCH] LCP: Improved lcp resync CLI and API to wait until Netlink
  create mode 100644 src/plugins/linux-cp/lcp_nl_api.c
 
 diff --git a/src/plugins/linux-cp/CMakeLists.txt b/src/plugins/linux-cp/CMakeLists.txt
-index c891689b4..14eab68f7 100644
+index 9ffb7e29f..f84da62cd 100644
 --- a/src/plugins/linux-cp/CMakeLists.txt
 +++ b/src/plugins/linux-cp/CMakeLists.txt
-@@ -70,9 +70,13 @@ add_vpp_plugin(linux_cp_unittest
+@@ -71,11 +71,15 @@ add_vpp_plugin(linux_cp_unittest
  
  add_vpp_plugin(linux_nl
    SOURCES
 +  lcp_nl_api.c
    lcp_router.c
    lcp_nl.c
+   lcp_ipsec.c
+   lcp_xfrm_nl.c
  
 +  API_FILES
 +  lcp_nl.api
 +
    LINK_LIBRARIES
+   ${LIBNL3_XFRM_LIB}
    lcp
- )
 diff --git a/src/plugins/linux-cp/lcp.api b/src/plugins/linux-cp/lcp.api
 index 67ade242e..e7eaa5a36 100644
 --- a/src/plugins/linux-cp/lcp.api
@@ -108,10 +111,10 @@ index 58a1cb66c..c7f0658ee 100644
  lcp_cli_init (vlib_main_t *vm)
  {
 diff --git a/src/plugins/linux-cp/lcp_interface.c b/src/plugins/linux-cp/lcp_interface.c
-index 41883f0bb..d5e221226 100644
+index 7f579234a..6f2b2e5c9 100644
 --- a/src/plugins/linux-cp/lcp_interface.c
 +++ b/src/plugins/linux-cp/lcp_interface.c
-@@ -1177,17 +1177,6 @@ lcp_itf_pair_replace_end (void)
+@@ -1182,17 +1182,6 @@ lcp_itf_pair_replace_end (void)
    return (0);
  }
  
@@ -338,5 +341,5 @@ index 000000000..f9005b6fc
 + * End:
 + */
 -- 
-2.43.0
+2.39.5
 

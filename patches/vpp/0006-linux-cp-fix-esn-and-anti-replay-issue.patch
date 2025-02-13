@@ -1,0 +1,40 @@
+From 3aee268143607b829b9e006ff3d72dfb67bd919b Mon Sep 17 00:00:00 2001
+From: Bheemappa Agasimundin <bagasimundin@marvell.com>
+Date: Tue, 27 Aug 2024 17:29:30 +0000
+Subject: [PATCH 06/13] linux-cp: fix esn and anti-replay issue
+
+This patch enables anti-replay when ESN is enabled on a Security
+Association (SA) configured via strongSwan.
+
+Type: fix
+JIRA: https://essjira.marvell.com/browse/IPBUSW-52363
+
+Signed-off-by: Bheemappa Agasimundin <bagasimundin@marvell.com>
+Change-Id: I0efd5ba77088214245eb3b19b35309eed2ab66ca
+Reviewed-on: https://sj1git1.cavium.com/c/IP/SW/toolkits/vpp/+/134340
+Tested-by: sa_ip-sw-jenkins <sa_ip-sw-jenkins@marvell.com>
+Reviewed-by: Monendra Singh Kushwaha <kmonendra@marvell.com>
+(cherry picked from commit 88d83f4567f7441184143a4e400af554d1819853)
+Reviewed-on: https://sj1git1.cavium.com/c/IP/SW/toolkits/vpp/+/134672
+Reviewed-by: Nithinsen Kaithakadan
+(cherry picked from commit 11bc4e788d884dedcc3d85ef57c71e1aa240cd00)
+---
+ src/plugins/linux-cp/lcp_ipsec.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/plugins/linux-cp/lcp_ipsec.c b/src/plugins/linux-cp/lcp_ipsec.c
+index fe83a948a..c847e699f 100644
+--- a/src/plugins/linux-cp/lcp_ipsec.c
++++ b/src/plugins/linux-cp/lcp_ipsec.c
+@@ -918,7 +918,7 @@ nl_xfrm_sa_add (struct xfrmnl_sa *sa)
+ 
+   if (xfrmnl_sa_get_flags (sa) & XFRM_STATE_ESN)
+     {
+-      flags |= IPSEC_SA_FLAG_USE_ESN;
++      flags |= IPSEC_SA_FLAG_USE_ESN | IPSEC_SA_FLAG_USE_ANTI_REPLAY;
+     }
+   /*
+    * Kernel SA XFRM doesnt have a flag for AR config. So a non-zero
+-- 
+2.39.5
+

@@ -1,0 +1,32 @@
+From b2bce6dc411175928d52e207d8890403af1f4792 Mon Sep 17 00:00:00 2001
+From: Kommula Shiva Shankar <kshankar@marvell.com>
+Date: Tue, 6 Feb 2024 23:23:14 +0530
+Subject: [PATCH 02/13] linux-cp: update code to support api proto changes
+
+Type: fix
+
+Signed-off-by: Kommula Shiva Shankar <kshankar@marvell.com>
+Change-Id: I8c1b075dc753155c7bc59712fc51aa3bcdda9d38
+Reviewed-on: https://sj1git1.cavium.com/c/IP/SW/toolkits/vpp/+/121382
+Reviewed-by: Monendra Singh Kushwaha <kmonendra@marvell.com>
+(cherry picked from commit 7b778c5bdda51f3f51dea82985ed1e4c20905414)
+---
+ src/plugins/linux-cp/lcp_ipsec.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/plugins/linux-cp/lcp_ipsec.c b/src/plugins/linux-cp/lcp_ipsec.c
+index 5b3a46058..3e5904454 100644
+--- a/src/plugins/linux-cp/lcp_ipsec.c
++++ b/src/plugins/linux-cp/lcp_ipsec.c
+@@ -998,7 +998,7 @@ nl_xfrm_sa_add (struct xfrmnl_sa *sa)
+     }
+ 
+   rv = ipsec_sa_add_and_lock (id, spi, proto, crypto_alg, &ck, integ_alg, &ik,
+-			      flags, salt, udp_src, udp_dst, &tun, &sai);
++			      flags, salt, udp_src, udp_dst, 0, &tun, &sai);
+   if (rv)
+     {
+       NL_XFRM_ERR ("ipsec sa add %x failure(err: %d) %U -> %U", id, rv,
+-- 
+2.39.5
+
