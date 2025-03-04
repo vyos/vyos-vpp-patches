@@ -1,0 +1,156 @@
+From bdf33d116b7f9100e44cedb83f0cbdc7b1f4e59a Mon Sep 17 00:00:00 2001
+From: Denys Haryachyy <garyachy@gmail.com>
+Date: Wed, 26 Feb 2025 14:52:32 +0200
+Subject: [PATCH] Install IPv4 default route from Linux with sw_if_index equal
+ to 0.
+
+Before this chnage this route was installed with sw_if_index equal to ~0.
+That caused crashes if traffic was routed through it.
+The issue that describes the crash is T7131.
+---
+ src/plugins/linux-cp/lcp_router.c | 99 ++++++++++++++++++++++++++-----
+ 1 file changed, 83 insertions(+), 16 deletions(-)
+
+diff --git a/src/plugins/linux-cp/lcp_router.c b/src/plugins/linux-cp/lcp_router.c
+index 0879d00bc..623430004 100644
+--- a/src/plugins/linux-cp/lcp_router.c
++++ b/src/plugins/linux-cp/lcp_router.c
+@@ -1157,6 +1157,45 @@ lcp_router_route_path_parse (struct rtnl_nexthop *rnh, void *arg)
+     }
+ }
+ 
++/*
++ * Check if there is a need to punt the route.
++ */
++static bool
++check_if_punted (struct rtnl_route *rr)
++{
++  // Check configuration to see if the routes should be punted
++  if (!lcp_get_route_no_paths ())
++    {
++      return false;
++    }
++
++  int proto = rtnl_route_get_protocol (rr);
++
++  LCP_ROUTER_DBG ("route proto: %d", proto);
++
++  // If the protocol is RTPROT_KERNEL, the route should be punted
++  if (proto == RTPROT_KERNEL)
++    {
++      return true;
++    }
++
++  const struct nl_addr *addr = rtnl_route_get_dst (rr);
++
++  // Check if the destination address is IPv4 and is the default route
++  // (0.0.0.0/0)
++  if (addr && nl_addr_get_family (addr) == AF_INET)
++    {
++      const uint32_t *baddr = nl_addr_get_binary_addr (addr);
++      if (*baddr == 0 && nl_addr_get_prefixlen (addr) == 0)
++	{
++	  return true;
++	}
++    }
++
++  // If none of the conditions are met, the route should not be punted
++  return false;
++}
++
+ /*
+  * blackhole, unreachable, prohibit will not have a next hop in an
+  * RTM_NEWROUTE. Add a path for them.
+@@ -1167,7 +1206,7 @@ lcp_router_route_path_add_special (struct rtnl_route *rr,
+ {
+   fib_route_path_t *path;
+ 
+-  if (rtnl_route_get_type (rr) < RTN_BLACKHOLE && !(lcp_get_route_no_paths ()))
++  if (rtnl_route_get_type (rr) < RTN_BLACKHOLE)
+     return;
+ 
+   /* if it already has a path, it does not need us to add one */
+@@ -1176,21 +1215,33 @@ lcp_router_route_path_add_special (struct rtnl_route *rr,
+ 
+   vec_add2 (ctx->paths, path, 1);
+ 
+-  /* If there are no paths, and `lcp param route-no-paths` is enabled
+-   * we need to add an extra local path. This allows punting traffic
+-   * with destinations available only via kernel */
+-  if (lcp_get_route_no_paths ())
+-    {
+-      path->frp_flags = FIB_ROUTE_PATH_LOCAL | ctx->type_flags;
+-    } else {
+-      path->frp_flags = FIB_ROUTE_PATH_FLAG_NONE | ctx->type_flags;
+-    }
++  path->frp_flags = FIB_ROUTE_PATH_FLAG_NONE | ctx->type_flags;
++  path->frp_sw_if_index = ~0;
++  path->frp_proto = fib_proto_to_dpo (ctx->route_proto);
++  path->frp_preference = ctx->preference;
++
++  LCP_ROUTER_DBG (" path:[%U]", format_fib_route_path, path);
++}
+ 
+-  /* Do not add interface to routes from kernel */
+-  if (rtnl_route_get_protocol (rr) != RTPROT_KERNEL) {
+-    path->frp_sw_if_index = ~0;
+-  }
++/*
++ * Add a special path for punted routes. Punted routes will have a next hop in
++ * an RTM_NEWROUTE. If the route already has a path, this function does not add
++ * another.
++ */
++static void
++lcp_router_route_path_add_special_punted (struct rtnl_route *rr,
++					  lcp_router_route_path_parse_t *ctx)
++{
++  fib_route_path_t *path;
++
++  /* if it already has a path, it does not need us to add one */
++  if (vec_len (ctx->paths) > 0)
++    return;
++
++  vec_add2 (ctx->paths, path, 1);
+ 
++  path->frp_flags = FIB_ROUTE_PATH_LOCAL | ctx->type_flags;
++  path->frp_sw_if_index = 0;
+   path->frp_proto = fib_proto_to_dpo (ctx->route_proto);
+   path->frp_preference = ctx->preference;
+ 
+@@ -1277,7 +1328,15 @@ lcp_router_route_del (struct rtnl_route *rr)
+   };
+ 
+   rtnl_route_foreach_nexthop (rr, lcp_router_route_path_parse, &np);
+-  lcp_router_route_path_add_special (rr, &np);
++
++  if (check_if_punted (rr))
++    {
++      lcp_router_route_path_add_special_punted (rr, &np);
++    }
++  else
++    {
++      lcp_router_route_path_add_special (rr, &np);
++    }
+ 
+   if (0 != vec_len (np.paths))
+     {
+@@ -1370,7 +1429,15 @@ lcp_router_route_add (struct rtnl_route *rr, int is_replace)
+   };
+ 
+   rtnl_route_foreach_nexthop (rr, lcp_router_route_path_parse, &np);
+-  lcp_router_route_path_add_special (rr, &np);
++
++  if (check_if_punted (rr))
++    {
++      lcp_router_route_path_add_special_punted (rr, &np);
++    }
++  else
++    {
++      lcp_router_route_path_add_special (rr, &np);
++    }
+ 
+   if (0 != vec_len (np.paths))
+     {
+-- 
+2.43.0
+
