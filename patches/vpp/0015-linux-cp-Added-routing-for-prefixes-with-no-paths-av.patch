@@ -1,7 +1,7 @@
-From c784244ca4092210ea74fcff1ec7c1a7d633e2ff Mon Sep 17 00:00:00 2001
+From 5583626fe1a9d11cffb8f759c996e341b7e54a7b Mon Sep 17 00:00:00 2001
 From: zsdc <taras@vyos.io>
 Date: Tue, 23 Jul 2024 20:06:41 +0300
-Subject: [PATCH 09/15] linux-cp: Added routing for prefixes with no paths
+Subject: [PATCH 15/15] linux-cp: Added routing for prefixes with no paths
  available
 
 A new CLI and configuration file option is available:
@@ -21,13 +21,33 @@ This allows punting traffic with destinations available only via a kernel
 routing table, but not via VPP.
 
 (cherry picked from commit 35bf59ac3fc96f1af7591dafa1fae642a34558e5)
+
+linux-cp: Added routing for prefixes with no paths available
+
+A new CLI and configuration file option is available:
+
+```
+lcp param route-no-paths (on|enable|off|disable)
+```
+
+```
+linux-cp {
+    route-no-paths
+}
+```
+
+If it is enabled, routes with no paths in VPP will be installed as local.
+This allows punting traffic with destinations available only via a kernel
+routing table, but not via VPP.
+
+(cherry picked from commit 35bf59ac3fc96f1af7591dafa1fae642a34558e5)
 ---
- src/plugins/linux-cp/lcp.c           | 16 ++++++++++++++++
- src/plugins/linux-cp/lcp.h           |  7 +++++++
- src/plugins/linux-cp/lcp_cli.c       | 14 +++++++++++++-
- src/plugins/linux-cp/lcp_interface.c |  4 ++++
- src/plugins/linux-cp/lcp_router.c    | 21 +++++++++++++++++----
- 5 files changed, 57 insertions(+), 5 deletions(-)
+ src/plugins/linux-cp/lcp.c           | 16 ++++++
+ src/plugins/linux-cp/lcp.h           |  7 +++
+ src/plugins/linux-cp/lcp_cli.c       | 14 ++++-
+ src/plugins/linux-cp/lcp_interface.c |  4 ++
+ src/plugins/linux-cp/lcp_router.c    | 78 +++++++++++++++++++++++++---
+ 5 files changed, 112 insertions(+), 7 deletions(-)
 
 diff --git a/src/plugins/linux-cp/lcp.c b/src/plugins/linux-cp/lcp.c
 index 34e8550a1..6e8c38b8c 100644
@@ -136,10 +156,44 @@ index 61665ad41..6f2b2e5c9 100644
  	return clib_error_return (0, "interfaces not found");
      }
 diff --git a/src/plugins/linux-cp/lcp_router.c b/src/plugins/linux-cp/lcp_router.c
-index 0efd53e64..0879d00bc 100644
+index 0efd53e64..6848f3d1c 100644
 --- a/src/plugins/linux-cp/lcp_router.c
 +++ b/src/plugins/linux-cp/lcp_router.c
-@@ -1167,7 +1167,7 @@ lcp_router_route_path_add_special (struct rtnl_route *rr,
+@@ -1157,6 +1157,33 @@ lcp_router_route_path_parse (struct rtnl_nexthop *rnh, void *arg)
+     }
+ }
+ 
++/*
++ * Check if there is a need to punt the route.
++ *
++ * This function determines if a route should be punted to the local interface.
++ * A route is punted if it is of a type that requires special handling (e.g.,
++ * RTN_LOCAL, RTN_BROADCAST, RTN_ANYCAST, etc.) and if it has no associated
++ * paths.
++ */
++static bool
++check_if_punted (struct rtnl_route *rr, lcp_router_route_path_parse_t *ctx)
++{
++  // If the configuration does not allow routes with no paths, return false
++  if (!lcp_get_route_no_paths ())
++    return false;
++
++  // If there are any paths associated with the route, return false
++  if (vec_len (ctx->paths) > 0)
++    return false;
++
++  // If the route type is blackhole or higher, return false
++  if (rtnl_route_get_type (rr) >= RTN_BLACKHOLE)
++    return false;
++
++  // Otherwise, the route should be punted
++  return true;
++}
++
+ /*
+  * blackhole, unreachable, prohibit will not have a next hop in an
+  * RTM_NEWROUTE. Add a path for them.
+@@ -1167,7 +1194,7 @@ lcp_router_route_path_add_special (struct rtnl_route *rr,
  {
    fib_route_path_t *path;
  
@@ -148,7 +202,7 @@ index 0efd53e64..0879d00bc 100644
      return;
  
    /* if it already has a path, it does not need us to add one */
-@@ -1176,8 +1176,21 @@ lcp_router_route_path_add_special (struct rtnl_route *rr,
+@@ -1176,8 +1203,21 @@ lcp_router_route_path_add_special (struct rtnl_route *rr,
  
    vec_add2 (ctx->paths, path, 1);
  
@@ -172,7 +226,26 @@ index 0efd53e64..0879d00bc 100644
    path->frp_proto = fib_proto_to_dpo (ctx->route_proto);
    path->frp_preference = ctx->preference;
  
-@@ -1335,7 +1348,7 @@ lcp_router_route_add (struct rtnl_route *rr, int is_replace)
+@@ -1264,7 +1304,17 @@ lcp_router_route_del (struct rtnl_route *rr)
+   };
+ 
+   rtnl_route_foreach_nexthop (rr, lcp_router_route_path_parse, &np);
+-  lcp_router_route_path_add_special (rr, &np);
++
++  if (check_if_punted (rr, &np))
++    {
++      fib_table_entry_special_remove (nlt->nlt_fib_index, &pfx,
++              lcp_router_proto_fib_source (rproto));
++      return;
++    }
++  else
++    {
++      lcp_router_route_path_add_special (rr, &np);
++    }
+ 
+   if (0 != vec_len (np.paths))
+     {
+@@ -1335,7 +1385,7 @@ lcp_router_route_add (struct rtnl_route *rr, int is_replace)
  
    nlt = lcp_router_table_add_or_lock (table_id, pfx.fp_proto);
    /* Skip any kernel routes and IPv6 LL or multicast routes */
@@ -181,6 +254,31 @@ index 0efd53e64..0879d00bc 100644
        (FIB_PROTOCOL_IP6 == pfx.fp_proto &&
         (ip6_address_is_multicast (&pfx.fp_addr.ip6) ||
  	ip6_address_is_link_local_unicast (&pfx.fp_addr.ip6))))
+@@ -1357,7 +1407,23 @@ lcp_router_route_add (struct rtnl_route *rr, int is_replace)
+   };
+ 
+   rtnl_route_foreach_nexthop (rr, lcp_router_route_path_parse, &np);
+-  lcp_router_route_path_add_special (rr, &np);
++
++  if (check_if_punted (rr, &np))
++    {
++      fib_source_t fib_src = lcp_router_proto_fib_source (rproto);
++      if (is_replace)
++	{
++	  fib_table_entry_special_remove (nlt->nlt_fib_index, &pfx, fib_src);
++	}
++
++      fib_table_entry_special_add (nlt->nlt_fib_index, &pfx, fib_src,
++				   FIB_ENTRY_FLAG_LOCAL);
++      return;
++    }
++  else
++    {
++      lcp_router_route_path_add_special (rr, &np);
++    }
+ 
+   if (0 != vec_len (np.paths))
+     {
 -- 
 2.45.2
 
