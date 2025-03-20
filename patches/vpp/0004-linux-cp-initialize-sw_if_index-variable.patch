@@ -1,7 +1,7 @@
 From 8ffe977acdba505759bd6645871ab976c7fbce87 Mon Sep 17 00:00:00 2001
 From: Kommula Shiva Shankar <kshankar@marvell.com>
 Date: Wed, 7 Feb 2024 11:58:17 +0530
-Subject: [PATCH 04/13] linux-cp: initialize sw_if_index variable
+Subject: [PATCH 04/17] linux-cp: initialize sw_if_index variable
 
 Type: fix
 
