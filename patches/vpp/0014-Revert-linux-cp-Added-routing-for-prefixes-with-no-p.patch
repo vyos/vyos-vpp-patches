@@ -1,7 +1,7 @@
 From 0696c16075caa700a0c9313400c67582da42de99 Mon Sep 17 00:00:00 2001
 From: Denys Haryachyy <garyachy@gmail.com>
 Date: Thu, 6 Mar 2025 16:27:51 +0200
-Subject: [PATCH 14/17] Revert "linux-cp: Added routing for prefixes with no
+Subject: [PATCH 14/18] Revert "linux-cp: Added routing for prefixes with no
  paths available"
 
 This reverts commit c784244ca4092210ea74fcff1ec7c1a7d633e2ff.

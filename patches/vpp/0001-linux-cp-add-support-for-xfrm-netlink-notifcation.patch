@@ -1,7 +1,7 @@
 From a3ebed1641deca92e4eae2b32d34dbe5fc5e9f57 Mon Sep 17 00:00:00 2001
 From: Aakash <saakashkumar@marvell.com>
 Date: Mon, 1 Aug 2022 04:59:02 -0400
-Subject: [PATCH 01/17] linux-cp: add support for xfrm netlink notifcation
+Subject: [PATCH 01/18] linux-cp: add support for xfrm netlink notifcation
 
 This patch contains changes to add support for handlng xfrm
 notifications in linux-cp plugin.
