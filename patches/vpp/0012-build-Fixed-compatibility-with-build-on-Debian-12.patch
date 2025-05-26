@@ -1,7 +1,7 @@
 From e34ad0e3b7ae9f4e630687e39278e5dd43a43c31 Mon Sep 17 00:00:00 2001
 From: zdc <taras@vyos.io>
 Date: Tue, 11 Feb 2025 20:33:46 +0200
-Subject: [PATCH 12/18] build: Fixed compatibility with build on Debian 12
+Subject: [PATCH 12/19] build: Fixed compatibility with build on Debian 12
 
 (cherry picked from commit ca7d5bcd381edb68e9d4ae6ffa915bda4d2c1adf)
 ---
