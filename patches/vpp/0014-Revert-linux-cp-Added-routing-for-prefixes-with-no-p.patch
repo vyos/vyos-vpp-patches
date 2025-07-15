@@ -1,7 +1,7 @@
 From 0696c16075caa700a0c9313400c67582da42de99 Mon Sep 17 00:00:00 2001
 From: Denys Haryachyy <garyachy@gmail.com>
 Date: Thu, 6 Mar 2025 16:27:51 +0200
-Subject: [PATCH 14/19] Revert "linux-cp: Added routing for prefixes with no
+Subject: [PATCH 14/20] Revert "linux-cp: Added routing for prefixes with no
  paths available"
 
 This reverts commit c784244ca4092210ea74fcff1ec7c1a7d633e2ff.
@@ -166,5 +166,5 @@ index 0879d00bc..0efd53e64 100644
         (ip6_address_is_multicast (&pfx.fp_addr.ip6) ||
  	ip6_address_is_link_local_unicast (&pfx.fp_addr.ip6))))
 -- 
-2.39.5
+2.43.0
 
