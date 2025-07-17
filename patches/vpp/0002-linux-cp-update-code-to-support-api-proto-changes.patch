@@ -1,7 +1,7 @@
 From b2bce6dc411175928d52e207d8890403af1f4792 Mon Sep 17 00:00:00 2001
 From: Kommula Shiva Shankar <kshankar@marvell.com>
 Date: Tue, 6 Feb 2024 23:23:14 +0530
-Subject: [PATCH 02/19] linux-cp: update code to support api proto changes
+Subject: [PATCH 02/20] linux-cp: update code to support api proto changes
 
 Type: fix
 
@@ -28,5 +28,5 @@ index 5b3a46058..3e5904454 100644
      {
        NL_XFRM_ERR ("ipsec sa add %x failure(err: %d) %U -> %U", id, rv,
 -- 
-2.39.5
+2.43.0
 
