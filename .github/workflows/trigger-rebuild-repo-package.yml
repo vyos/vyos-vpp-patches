@@ -1,0 +1,45 @@
+name: Trigger to build a deb package from repo
+
+on:
+  pull_request_target:
+    types:
+      - closed
+    branches:
+      - current
+  workflow_dispatch:
+
+jobs:
+  get_repo_name:
+    runs-on: ubuntu-latest
+    outputs:
+      PACKAGE_NAME: ${{ steps.package_name.outputs.PACKAGE_NAME }}
+      vpp_changed: ${{ steps.filter.outputs.vpp }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set variables
+        id: package_name
+        run: |
+          echo "PACKAGE_NAME=$(basename ${{ github.repository }})" >> $GITHUB_OUTPUT
+
+      - name: Check if vpp patches changed
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          filters: |
+            vpp:
+              - 'patches/vpp/**'
+
+  trigger-build:
+    needs: get_repo_name
+    if: needs.get_repo_name.outputs.vpp_changed == 'true'
+    uses: vyos/.github/.github/workflows/trigger-rebuild-repo-package.yml@current
+    with:
+      branch: ${{ github.ref_name }}
+      package_name: vpp  # We trigger the "vpp" package to rebuild, not "vyos-vpp-patches"
+    secrets:
+      REMOTE_OWNER: ${{ secrets.REMOTE_OWNER }}
+      REMOTE_REUSE_REPO: ${{ secrets.REMOTE_REUSE_REPO }}
+      GPG_KEY_ID: ${{ secrets.GPG_KEY_ID }}
+      PAT: ${{ secrets.PAT }}
