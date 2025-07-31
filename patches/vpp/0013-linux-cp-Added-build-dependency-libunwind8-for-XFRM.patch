@@ -1,7 +1,7 @@
 From 44830bdae2c4cefe94dd3c8ceee471b7dadeef8b Mon Sep 17 00:00:00 2001
 From: Viacheslav Hletenko <v.gletenko@vyos.io>
 Date: Thu, 13 Feb 2025 11:37:36 +0000
-Subject: [PATCH 13/20] linux-cp: Added build dependency libunwind8 for XFRM
+Subject: [PATCH 13/21] linux-cp: Added build dependency libunwind8 for XFRM
 
 Added `libunwind8` to build dependencies required by
 `linux-cp` for XFRM
@@ -22,5 +22,5 @@ index d3d433ddb..82b42bfef 100644
  LIBFFI=libffi6 # works on all but 20.04 and debian-testing
  ifeq ($(OS_VERSION_ID),24.04)
 -- 
-2.43.0
+2.39.5
 

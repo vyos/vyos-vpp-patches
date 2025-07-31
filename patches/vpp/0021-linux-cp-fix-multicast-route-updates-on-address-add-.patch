@@ -1,0 +1,97 @@
+From cc49b0a3906862a5b846804bd85725de2e952dc9 Mon Sep 17 00:00:00 2001
+From: Denys Haryachyy <garyachy@gmail.com>
+Date: Tue, 29 Jul 2025 17:39:29 +0300
+Subject: [PATCH 21/21] linux-cp: fix multicast route updates on address
+ add/del
+
+Ensure multicast routes are only added when the first IPv4 address is configured on an interface,
+and only removed when the last address is deleted.
+
+This prevents premature removal or redundant addition of multicast routes during address changes.
+
+Type: fix
+
+Change-Id: Id191cd88abfc2c4c354fceec4aaabc030ed938cc
+Signed-off-by: Denys Haryachyy <garyachy@gmail.com>
+(cherry picked from commit 344dab5a22e1d8020aae6fb331d3e7cfeb6b7a7a)
+---
+ src/plugins/linux-cp/lcp_router.c | 49 +++++++++++++++++++++++++++++--
+ 1 file changed, 47 insertions(+), 2 deletions(-)
+
+diff --git a/src/plugins/linux-cp/lcp_router.c b/src/plugins/linux-cp/lcp_router.c
+index 0e2800624..f06f0dde8 100644
+--- a/src/plugins/linux-cp/lcp_router.c
++++ b/src/plugins/linux-cp/lcp_router.c
+@@ -642,6 +642,51 @@ lcp_router_mk_addr46 (const struct nl_addr *rna, ip46_address_t *ia)
+   return (fproto);
+ }
+ 
++static u32
++lcp_router_count_interface_addresses (u32 sw_if_index, u8 address_family)
++{
++  ip_lookup_main_t *lm = NULL;
++  ip_interface_address_t *ia = NULL;
++  u32 count = 0;
++
++  if (address_family == AF_IP4)
++    lm = &ip4_main.lookup_main;
++  else if (address_family == AF_IP6)
++    lm = &ip6_main.lookup_main;
++  else
++    return 0;
++
++  foreach_ip_interface_address (lm, ia, sw_if_index, 1 /* honor unnumbered */,
++				({
++				  (void) ia;
++				  count++;
++				}));
++
++  return count;
++}
++
++static void
++lcp_router_update_mroutes_ip4_on_addr_change (u32 sw_if_index, int is_del)
++{
++  u32 count_after;
++
++  count_after = lcp_router_count_interface_addresses (sw_if_index, AF_IP4);
++
++  if ((!is_del && count_after == 1) || (is_del && count_after == 0))
++    lcp_router_ip4_mroutes_add_del (sw_if_index, !is_del);
++}
++
++static void
++lcp_router_update_mroutes_ip6_on_addr_change (u32 sw_if_index, int is_del)
++{
++  u32 count_after;
++
++  count_after = lcp_router_count_interface_addresses (sw_if_index, AF_IP6);
++
++  if ((!is_del && count_after == 1) || (is_del && count_after == 0))
++    lcp_router_ip6_mroutes_add_del (sw_if_index, !is_del);
++}
++
+ static void
+ lcp_router_link_addr_add_del (struct rtnl_addr *rla, int is_del)
+ {
+@@ -660,7 +705,7 @@ lcp_router_link_addr_add_del (struct rtnl_addr *rla, int is_del)
+ 	  ip4_add_del_interface_address (
+ 	    vlib_get_main (), sw_if_index, &ip_addr_v4 (&nh),
+ 	    rtnl_addr_get_prefixlen (rla), is_del);
+-	  lcp_router_ip4_mroutes_add_del (sw_if_index, !is_del);
++	  lcp_router_update_mroutes_ip4_on_addr_change (sw_if_index, is_del);
+ 	}
+       else if (AF_IP6 == ip_addr_version (&nh))
+ 	{
+@@ -676,7 +721,7 @@ lcp_router_link_addr_add_del (struct rtnl_addr *rla, int is_del)
+ 	    ip6_add_del_interface_address (
+ 	      vlib_get_main (), sw_if_index, &ip_addr_v6 (&nh),
+ 	      rtnl_addr_get_prefixlen (rla), is_del);
+-	  lcp_router_ip6_mroutes_add_del (sw_if_index, !is_del);
++	  lcp_router_update_mroutes_ip6_on_addr_change (sw_if_index, is_del);
+ 	}
+ 
+       LCP_ROUTER_DBG ("link-addr: %U %U/%d", format_vnet_sw_if_index_name,
+-- 
+2.39.5
+

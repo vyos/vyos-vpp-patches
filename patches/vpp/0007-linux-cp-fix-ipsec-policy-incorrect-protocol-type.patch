@@ -1,7 +1,7 @@
 From 48d57e9543244fb29b8e9bdce4d5775950332e9d Mon Sep 17 00:00:00 2001
 From: Bheemappa Agasimundin <bagasimundin@marvell.com>
 Date: Tue, 1 Oct 2024 15:06:41 +0000
-Subject: [PATCH 07/20] linux-cp: fix ipsec policy incorrect protocol type
+Subject: [PATCH 07/21] linux-cp: fix ipsec policy incorrect protocol type
 
 This patch changes protocol type 0 to IPSEC_POLICY_PROTOCOL_ANY to
 allow any transport protocol for protect/bypass.
@@ -51,5 +51,5 @@ index c847e699f..ff6e79649 100644
  
    lcp_xfrm_mk_ipaddr (sel_dst, &sel_daddr);
 -- 
-2.43.0
+2.39.5
 

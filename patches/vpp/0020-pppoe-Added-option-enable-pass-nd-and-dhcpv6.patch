@@ -1,7 +1,7 @@
 From db653f726ee47e87554cf98d18dfc921fe5b4e08 Mon Sep 17 00:00:00 2001
 From: Andrii Melnychenko <a.melnychenko@vyos.io>
 Date: Thu, 10 Jul 2025 17:42:44 +0200
-Subject: [PATCH 20/20] pppoe: Added option "enable-pass-nd-and-dhcpv6"
+Subject: [PATCH 20/21] pppoe: Added option "enable-pass-nd-and-dhcpv6"
 
 This option would allow to pass ICMPv6 sl & ra and
 UDP-DHCPv6 packets to the PPPoE control plane.
@@ -95,5 +95,5 @@ index 7263a58a1..7f47923ef 100644
  		  vlan0 == 0 ?
  	  	    vlib_buffer_advance(b0, sizeof(*h0))
 -- 
-2.43.0
+2.39.5
 
