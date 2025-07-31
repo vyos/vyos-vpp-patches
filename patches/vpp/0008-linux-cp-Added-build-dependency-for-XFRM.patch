@@ -1,7 +1,7 @@
 From 28a3d6f27e0237f07d71a305191a814e07550128 Mon Sep 17 00:00:00 2001
 From: zdc <taras@vyos.io>
 Date: Wed, 12 Feb 2025 12:29:57 +0200
-Subject: [PATCH 08/20] linux-cp: Added build dependency for XFRM
+Subject: [PATCH 08/21] linux-cp: Added build dependency for XFRM
 
 Added `libnl-xfrm-3-200` to build dependencies to make build
 `linux-cp` with XFRM possible.
@@ -24,5 +24,5 @@ index 98866e9be..aa0e99e65 100644
  LIBFFI=libffi6 # works on all but 20.04 and debian-testing
  ifeq ($(OS_VERSION_ID),24.04)
 -- 
-2.43.0
+2.39.5
 

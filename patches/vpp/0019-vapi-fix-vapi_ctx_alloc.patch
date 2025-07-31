@@ -1,7 +1,7 @@
 From 61646528090c8bfa130d24a1e287fd4e37742adb Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?Beno=C3=AEt=20Ganne?= <bganne@cisco.com>
 Date: Fri, 29 Nov 2024 14:14:16 +0100
-Subject: [PATCH 19/20] vapi: fix vapi_ctx_alloc
+Subject: [PATCH 19/21] vapi: fix vapi_ctx_alloc
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
 Content-Transfer-Encoding: 8bit
@@ -45,5 +45,5 @@ index 26c570834..e2e4bb02d 100644
    const size_t size = ctx->requests_size * sizeof (*ctx->requests);
    void *tmp = realloc (ctx->requests, size);
 -- 
-2.43.0
+2.39.5
 
