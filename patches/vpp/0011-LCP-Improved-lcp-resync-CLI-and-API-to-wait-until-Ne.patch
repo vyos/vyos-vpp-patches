@@ -1,4 +1,4 @@
-From 9653065d5de59ab76e10f67117896f7ed6478585 Mon Sep 17 00:00:00 2001
+From 759521ff07dcfb69a09d432e943319a8422ee47c Mon Sep 17 00:00:00 2001
 From: Denys Haryachyy <garyachy@gmail.com>
 Date: Wed, 29 Jan 2025 11:57:01 +0200
 Subject: [PATCH 11/21] LCP: Improved lcp resync CLI and API to wait until
@@ -41,10 +41,10 @@ index 9ffb7e29f..f84da62cd 100644
    ${LIBNL3_XFRM_LIB}
    lcp
 diff --git a/src/plugins/linux-cp/lcp.api b/src/plugins/linux-cp/lcp.api
-index 67ade242e..e7eaa5a36 100644
+index 57b48dffd..8b0fdb5eb 100644
 --- a/src/plugins/linux-cp/lcp.api
 +++ b/src/plugins/linux-cp/lcp.api
-@@ -200,16 +200,6 @@ autoreply define lcp_itf_pair_replace_end
+@@ -236,16 +236,6 @@ autoreply define lcp_itf_pair_replace_end
    u32 context;
  };
  
@@ -62,11 +62,11 @@ index 67ade242e..e7eaa5a36 100644
   * Linux-CP Error counters/messages
   */
 diff --git a/src/plugins/linux-cp/lcp_api.c b/src/plugins/linux-cp/lcp_api.c
-index c681337c7..74421230e 100644
+index ffcd4d416..0db502988 100644
 --- a/src/plugins/linux-cp/lcp_api.c
 +++ b/src/plugins/linux-cp/lcp_api.c
-@@ -280,18 +280,6 @@ vl_api_lcp_itf_pair_replace_end_t_handler (
-   REPLY_MACRO (VL_API_LCP_ITF_PAIR_REPLACE_END_REPLY);
+@@ -314,18 +314,6 @@ vl_api_lcp_ethertype_get_t_handler (vl_api_lcp_ethertype_get_t *mp)
+   vec_free (ethertypes);
  }
  
 -static void
@@ -85,11 +85,11 @@ index c681337c7..74421230e 100644
   * Set up the API message handling tables
   */
 diff --git a/src/plugins/linux-cp/lcp_cli.c b/src/plugins/linux-cp/lcp_cli.c
-index 58a1cb66c..c7f0658ee 100644
+index 000d6c20d..d10557766 100644
 --- a/src/plugins/linux-cp/lcp_cli.c
 +++ b/src/plugins/linux-cp/lcp_cli.c
-@@ -349,21 +349,6 @@ VLIB_CLI_COMMAND (lcp_itf_pair_show_cmd_node, static) = {
-   .is_mp_safe = 1,
+@@ -405,21 +405,6 @@ VLIB_CLI_COMMAND (lcp_ethertype_show_command, static) = {
+   .function = lcp_ethertype_show_cmd,
  };
  
 -static clib_error_t *
@@ -111,10 +111,10 @@ index 58a1cb66c..c7f0658ee 100644
  lcp_cli_init (vlib_main_t *vm)
  {
 diff --git a/src/plugins/linux-cp/lcp_interface.c b/src/plugins/linux-cp/lcp_interface.c
-index 7f579234a..6f2b2e5c9 100644
+index d4547c81c..d831d83f9 100644
 --- a/src/plugins/linux-cp/lcp_interface.c
 +++ b/src/plugins/linux-cp/lcp_interface.c
-@@ -1182,17 +1182,6 @@ lcp_itf_pair_replace_end (void)
+@@ -1198,17 +1198,6 @@ lcp_itf_pair_replace_end (void)
    return (0);
  }
  
@@ -133,10 +133,10 @@ index 7f579234a..6f2b2e5c9 100644
  lcp_itf_pair_link_up_down (vnet_main_t *vnm, u32 hw_if_index, u32 flags)
  {
 diff --git a/src/plugins/linux-cp/lcp_interface.h b/src/plugins/linux-cp/lcp_interface.h
-index bb534308a..cfcd3925a 100644
+index 6b44d3d25..8cf6d3f4d 100644
 --- a/src/plugins/linux-cp/lcp_interface.h
 +++ b/src/plugins/linux-cp/lcp_interface.h
-@@ -136,11 +136,6 @@ extern void lcp_itf_pair_walk (lcp_itf_pair_walk_cb_t cb, void *ctx);
+@@ -137,11 +137,6 @@ extern void lcp_itf_pair_walk (lcp_itf_pair_walk_cb_t cb, void *ctx);
  extern int lcp_itf_pair_replace_begin (void);
  extern int lcp_itf_pair_replace_end (void);
  
@@ -193,7 +193,7 @@ index 000000000..ab34c523f
 + * End:
 + */
 diff --git a/src/plugins/linux-cp/lcp_nl.c b/src/plugins/linux-cp/lcp_nl.c
-index 0b2536ccc..34ce6f37e 100644
+index 5ac6ae273..ae989b06e 100644
 --- a/src/plugins/linux-cp/lcp_nl.c
 +++ b/src/plugins/linux-cp/lcp_nl.c
 @@ -92,6 +92,8 @@ typedef struct nl_main
@@ -213,7 +213,7 @@ index 0b2536ccc..34ce6f37e 100644
  	}
        else
  	NL_ERROR ("Unknown status: %d", nm->nl_status);
-@@ -1019,6 +1022,41 @@ lcp_nl_close_sync_socket (nl_sock_type_t sock_type)
+@@ -1020,6 +1023,41 @@ lcp_nl_close_sync_socket (nl_sock_type_t sock_type)
      }
  }
  

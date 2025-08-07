@@ -1,4 +1,4 @@
-From 322efbd2c42c6c5007e601de6c752a6197385370 Mon Sep 17 00:00:00 2001
+From 76436e797f22e2e3160d044bdd18ff83154fec3e Mon Sep 17 00:00:00 2001
 From: zsdc <taras@vyos.io>
 Date: Tue, 23 Jul 2024 20:06:41 +0300
 Subject: [PATCH 17/21] linux-cp: Added routing for prefixes with no paths
@@ -106,7 +106,7 @@ index e89b149f6..5349bb492 100644
  
  /*
 diff --git a/src/plugins/linux-cp/lcp_cli.c b/src/plugins/linux-cp/lcp_cli.c
-index 0dcf600b3..c7f0658ee 100644
+index e89afd2a7..d10557766 100644
 --- a/src/plugins/linux-cp/lcp_cli.c
 +++ b/src/plugins/linux-cp/lcp_cli.c
 @@ -192,6 +192,17 @@ lcp_param_command_fn (vlib_main_t *vm, unformat_input_t *input,
@@ -138,7 +138,7 @@ index 0dcf600b3..c7f0658ee 100644
  };
  
 diff --git a/src/plugins/linux-cp/lcp_interface.c b/src/plugins/linux-cp/lcp_interface.c
-index 61665ad41..6f2b2e5c9 100644
+index 31864f791..d831d83f9 100644
 --- a/src/plugins/linux-cp/lcp_interface.c
 +++ b/src/plugins/linux-cp/lcp_interface.c
 @@ -138,6 +138,8 @@ lcp_itf_pair_show (u32 phy_sw_if_index)
@@ -150,7 +150,7 @@ index 61665ad41..6f2b2e5c9 100644
  
    if (phy_sw_if_index == ~0)
      {
-@@ -588,6 +590,8 @@ lcp_itf_pair_config (vlib_main_t *vm, unformat_input_t *input)
+@@ -604,6 +606,8 @@ lcp_itf_pair_config (vlib_main_t *vm, unformat_input_t *input)
  	lcp_set_default_num_queues (tmp, 0 /* is_tx */);
        else if (unformat (input, "num-tx-queues %d", &tmp))
  	lcp_set_default_num_queues (tmp, 1 /* is_tx */);
@@ -160,10 +160,10 @@ index 61665ad41..6f2b2e5c9 100644
  	return clib_error_return (0, "interfaces not found");
      }
 diff --git a/src/plugins/linux-cp/lcp_router.c b/src/plugins/linux-cp/lcp_router.c
-index 0efd53e64..0e2800624 100644
+index 27f53357a..490b9fc23 100644
 --- a/src/plugins/linux-cp/lcp_router.c
 +++ b/src/plugins/linux-cp/lcp_router.c
-@@ -1157,6 +1157,42 @@ lcp_router_route_path_parse (struct rtnl_nexthop *rnh, void *arg)
+@@ -1156,6 +1156,42 @@ lcp_router_route_path_parse (struct rtnl_nexthop *rnh, void *arg)
      }
  }
  
@@ -206,7 +206,7 @@ index 0efd53e64..0e2800624 100644
  /*
   * blackhole, unreachable, prohibit will not have a next hop in an
   * RTM_NEWROUTE. Add a path for them.
-@@ -1167,7 +1203,7 @@ lcp_router_route_path_add_special (struct rtnl_route *rr,
+@@ -1166,7 +1202,7 @@ lcp_router_route_path_add_special (struct rtnl_route *rr,
  {
    fib_route_path_t *path;
  
@@ -215,7 +215,7 @@ index 0efd53e64..0e2800624 100644
      return;
  
    /* if it already has a path, it does not need us to add one */
-@@ -1176,8 +1212,21 @@ lcp_router_route_path_add_special (struct rtnl_route *rr,
+@@ -1175,8 +1211,21 @@ lcp_router_route_path_add_special (struct rtnl_route *rr,
  
    vec_add2 (ctx->paths, path, 1);
  
@@ -239,7 +239,7 @@ index 0efd53e64..0e2800624 100644
    path->frp_proto = fib_proto_to_dpo (ctx->route_proto);
    path->frp_preference = ctx->preference;
  
-@@ -1264,7 +1313,17 @@ lcp_router_route_del (struct rtnl_route *rr)
+@@ -1263,7 +1312,17 @@ lcp_router_route_del (struct rtnl_route *rr)
    };
  
    rtnl_route_foreach_nexthop (rr, lcp_router_route_path_parse, &np);
@@ -258,7 +258,7 @@ index 0efd53e64..0e2800624 100644
  
    if (0 != vec_len (np.paths))
      {
-@@ -1334,17 +1393,7 @@ lcp_router_route_add (struct rtnl_route *rr, int is_replace)
+@@ -1333,17 +1392,7 @@ lcp_router_route_add (struct rtnl_route *rr, int is_replace)
    entry_flags = lcp_router_route_mk_entry_flags (rtype, table_id, rproto);
  
    nlt = lcp_router_table_add_or_lock (table_id, pfx.fp_proto);
@@ -277,7 +277,7 @@ index 0efd53e64..0e2800624 100644
    LCP_ROUTER_DBG ("route %s: %d:%U %U", is_replace ? "replace" : "add",
  		  rtnl_route_get_table (rr), format_fib_prefix, &pfx,
  		  format_fib_entry_flags, entry_flags);
-@@ -1357,7 +1406,34 @@ lcp_router_route_add (struct rtnl_route *rr, int is_replace)
+@@ -1356,7 +1405,34 @@ lcp_router_route_add (struct rtnl_route *rr, int is_replace)
    };
  
    rtnl_route_foreach_nexthop (rr, lcp_router_route_path_parse, &np);
@@ -339,10 +339,10 @@ index a3116bb93..be1a9a822 100644
  }
  
 diff --git a/src/vnet/ip/ip4_forward.c b/src/vnet/ip/ip4_forward.c
-index ff74b52eb..80688a097 100644
+index cabefd812..3f8b4aed3 100644
 --- a/src/vnet/ip/ip4_forward.c
 +++ b/src/vnet/ip/ip4_forward.c
-@@ -1522,6 +1522,16 @@ ip4_local_check_src (vlib_buffer_t *b, ip4_header_t *ip0,
+@@ -1521,6 +1521,16 @@ ip4_local_check_src (vlib_buffer_t *b, ip4_header_t *ip0,
      vnet_buffer (b)->sw_if_index[VLIB_TX] != ~0 ?
      vnet_buffer (b)->sw_if_index[VLIB_TX] : vnet_buffer (b)->ip.fib_index;
  

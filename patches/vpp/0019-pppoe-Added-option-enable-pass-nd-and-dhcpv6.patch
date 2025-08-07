@@ -1,7 +1,7 @@
-From db653f726ee47e87554cf98d18dfc921fe5b4e08 Mon Sep 17 00:00:00 2001
+From f8c35e9dc43b36c4469a7586675e74a922af3d58 Mon Sep 17 00:00:00 2001
 From: Andrii Melnychenko <a.melnychenko@vyos.io>
 Date: Thu, 10 Jul 2025 17:42:44 +0200
-Subject: [PATCH 20/21] pppoe: Added option "enable-pass-nd-and-dhcpv6"
+Subject: [PATCH 19/21] pppoe: Added option "enable-pass-nd-and-dhcpv6"
 
 This option would allow to pass ICMPv6 sl & ra and
 UDP-DHCPv6 packets to the PPPoE control plane.
@@ -14,7 +14,7 @@ Signed-off-by: Andrii Melnychenko <a.melnychenko@vyos.io>
  3 files changed, 10 insertions(+), 6 deletions(-)
 
 diff --git a/src/plugins/pppoe/pppoe.c b/src/plugins/pppoe/pppoe.c
-index c6b6cf0ba..734137f63 100644
+index 7e209787c..60fa70b96 100644
 --- a/src/plugins/pppoe/pppoe.c
 +++ b/src/plugins/pppoe/pppoe.c
 @@ -1024,6 +1024,8 @@ pppoe_config (vlib_main_t *vm, unformat_input_t *input)
@@ -39,7 +39,7 @@ index a23fe865c..231daae67 100644
  } pppoe_main_t;
  
 diff --git a/src/plugins/pppoe/pppoe_decap.c b/src/plugins/pppoe/pppoe_decap.c
-index 7263a58a1..7f47923ef 100644
+index ec5692721..79710392d 100644
 --- a/src/plugins/pppoe/pppoe_decap.c
 +++ b/src/plugins/pppoe/pppoe_decap.c
 @@ -47,7 +47,7 @@ static u8 * format_pppoe_rx_trace (u8 * s, va_list * args)
