@@ -1,4 +1,4 @@
-From 350e148db0fb9708fb234e68e2eaa8500a0248d1 Mon Sep 17 00:00:00 2001
+From af8cc793670b14b177a13e9fb7f305ac9cce0ec7 Mon Sep 17 00:00:00 2001
 From: Denys Haryachyy <garyachy@gmail.com>
 Date: Tue, 18 Mar 2025 21:32:51 +0200
 Subject: [PATCH 16/21] Revert "linux-cp: Added routing for prefixes with no
@@ -66,7 +66,7 @@ index 5349bb492..e89b149f6 100644
  
  /*
 diff --git a/src/plugins/linux-cp/lcp_cli.c b/src/plugins/linux-cp/lcp_cli.c
-index c7f0658ee..0dcf600b3 100644
+index d10557766..e89afd2a7 100644
 --- a/src/plugins/linux-cp/lcp_cli.c
 +++ b/src/plugins/linux-cp/lcp_cli.c
 @@ -192,17 +192,6 @@ lcp_param_command_fn (vlib_main_t *vm, unformat_input_t *input,
@@ -98,7 +98,7 @@ index c7f0658ee..0dcf600b3 100644
  };
  
 diff --git a/src/plugins/linux-cp/lcp_interface.c b/src/plugins/linux-cp/lcp_interface.c
-index 6f2b2e5c9..61665ad41 100644
+index d831d83f9..31864f791 100644
 --- a/src/plugins/linux-cp/lcp_interface.c
 +++ b/src/plugins/linux-cp/lcp_interface.c
 @@ -138,8 +138,6 @@ lcp_itf_pair_show (u32 phy_sw_if_index)
@@ -110,7 +110,7 @@ index 6f2b2e5c9..61665ad41 100644
  
    if (phy_sw_if_index == ~0)
      {
-@@ -590,8 +588,6 @@ lcp_itf_pair_config (vlib_main_t *vm, unformat_input_t *input)
+@@ -606,8 +604,6 @@ lcp_itf_pair_config (vlib_main_t *vm, unformat_input_t *input)
  	lcp_set_default_num_queues (tmp, 0 /* is_tx */);
        else if (unformat (input, "num-tx-queues %d", &tmp))
  	lcp_set_default_num_queues (tmp, 1 /* is_tx */);
@@ -120,10 +120,10 @@ index 6f2b2e5c9..61665ad41 100644
  	return clib_error_return (0, "interfaces not found");
      }
 diff --git a/src/plugins/linux-cp/lcp_router.c b/src/plugins/linux-cp/lcp_router.c
-index 6848f3d1c..0efd53e64 100644
+index 8dbe74cf7..27f53357a 100644
 --- a/src/plugins/linux-cp/lcp_router.c
 +++ b/src/plugins/linux-cp/lcp_router.c
-@@ -1157,33 +1157,6 @@ lcp_router_route_path_parse (struct rtnl_nexthop *rnh, void *arg)
+@@ -1156,33 +1156,6 @@ lcp_router_route_path_parse (struct rtnl_nexthop *rnh, void *arg)
      }
  }
  
@@ -157,7 +157,7 @@ index 6848f3d1c..0efd53e64 100644
  /*
   * blackhole, unreachable, prohibit will not have a next hop in an
   * RTM_NEWROUTE. Add a path for them.
-@@ -1194,7 +1167,7 @@ lcp_router_route_path_add_special (struct rtnl_route *rr,
+@@ -1193,7 +1166,7 @@ lcp_router_route_path_add_special (struct rtnl_route *rr,
  {
    fib_route_path_t *path;
  
@@ -166,7 +166,7 @@ index 6848f3d1c..0efd53e64 100644
      return;
  
    /* if it already has a path, it does not need us to add one */
-@@ -1203,21 +1176,8 @@ lcp_router_route_path_add_special (struct rtnl_route *rr,
+@@ -1202,21 +1175,8 @@ lcp_router_route_path_add_special (struct rtnl_route *rr,
  
    vec_add2 (ctx->paths, path, 1);
  
@@ -190,7 +190,7 @@ index 6848f3d1c..0efd53e64 100644
    path->frp_proto = fib_proto_to_dpo (ctx->route_proto);
    path->frp_preference = ctx->preference;
  
-@@ -1304,17 +1264,7 @@ lcp_router_route_del (struct rtnl_route *rr)
+@@ -1303,17 +1263,7 @@ lcp_router_route_del (struct rtnl_route *rr)
    };
  
    rtnl_route_foreach_nexthop (rr, lcp_router_route_path_parse, &np);
@@ -209,7 +209,7 @@ index 6848f3d1c..0efd53e64 100644
  
    if (0 != vec_len (np.paths))
      {
-@@ -1385,7 +1335,7 @@ lcp_router_route_add (struct rtnl_route *rr, int is_replace)
+@@ -1384,7 +1334,7 @@ lcp_router_route_add (struct rtnl_route *rr, int is_replace)
  
    nlt = lcp_router_table_add_or_lock (table_id, pfx.fp_proto);
    /* Skip any kernel routes and IPv6 LL or multicast routes */
@@ -218,7 +218,7 @@ index 6848f3d1c..0efd53e64 100644
        (FIB_PROTOCOL_IP6 == pfx.fp_proto &&
         (ip6_address_is_multicast (&pfx.fp_addr.ip6) ||
  	ip6_address_is_link_local_unicast (&pfx.fp_addr.ip6))))
-@@ -1407,23 +1357,7 @@ lcp_router_route_add (struct rtnl_route *rr, int is_replace)
+@@ -1406,23 +1356,7 @@ lcp_router_route_add (struct rtnl_route *rr, int is_replace)
    };
  
    rtnl_route_foreach_nexthop (rr, lcp_router_route_path_parse, &np);

@@ -1,4 +1,4 @@
-From d66645af550b6916e11f3923c1fbaf511094e1b8 Mon Sep 17 00:00:00 2001
+From d87a33a4dd33f04dce319a1e410bc811808fb7b1 Mon Sep 17 00:00:00 2001
 From: Denys Haryachyy <garyachy@gmail.com>
 Date: Wed, 24 Jul 2024 08:35:25 +0000
 Subject: [PATCH 10/21] Resync ip fib with Linux state.
@@ -32,10 +32,10 @@ The common functionality behind the API and CLI command was designed to do the f
  6 files changed, 70 insertions(+), 1 deletion(-)
 
 diff --git a/src/plugins/linux-cp/lcp.api b/src/plugins/linux-cp/lcp.api
-index e7eaa5a36..67ade242e 100644
+index 8b0fdb5eb..57b48dffd 100644
 --- a/src/plugins/linux-cp/lcp.api
 +++ b/src/plugins/linux-cp/lcp.api
-@@ -200,6 +200,16 @@ autoreply define lcp_itf_pair_replace_end
+@@ -236,6 +236,16 @@ autoreply define lcp_itf_pair_replace_end
    u32 context;
  };
  
@@ -53,11 +53,11 @@ index e7eaa5a36..67ade242e 100644
   * Linux-CP Error counters/messages
   */
 diff --git a/src/plugins/linux-cp/lcp_api.c b/src/plugins/linux-cp/lcp_api.c
-index 74421230e..c681337c7 100644
+index 0db502988..ffcd4d416 100644
 --- a/src/plugins/linux-cp/lcp_api.c
 +++ b/src/plugins/linux-cp/lcp_api.c
-@@ -280,6 +280,18 @@ vl_api_lcp_itf_pair_replace_end_t_handler (
-   REPLY_MACRO (VL_API_LCP_ITF_PAIR_REPLACE_END_REPLY);
+@@ -314,6 +314,18 @@ vl_api_lcp_ethertype_get_t_handler (vl_api_lcp_ethertype_get_t *mp)
+   vec_free (ethertypes);
  }
  
 +static void
@@ -76,11 +76,11 @@ index 74421230e..c681337c7 100644
   * Set up the API message handling tables
   */
 diff --git a/src/plugins/linux-cp/lcp_cli.c b/src/plugins/linux-cp/lcp_cli.c
-index c7f0658ee..58a1cb66c 100644
+index d10557766..000d6c20d 100644
 --- a/src/plugins/linux-cp/lcp_cli.c
 +++ b/src/plugins/linux-cp/lcp_cli.c
-@@ -349,6 +349,21 @@ VLIB_CLI_COMMAND (lcp_itf_pair_show_cmd_node, static) = {
-   .is_mp_safe = 1,
+@@ -405,6 +405,21 @@ VLIB_CLI_COMMAND (lcp_ethertype_show_command, static) = {
+   .function = lcp_ethertype_show_cmd,
  };
  
 +static clib_error_t *
@@ -102,10 +102,10 @@ index c7f0658ee..58a1cb66c 100644
  lcp_cli_init (vlib_main_t *vm)
  {
 diff --git a/src/plugins/linux-cp/lcp_interface.c b/src/plugins/linux-cp/lcp_interface.c
-index 6f2b2e5c9..7f579234a 100644
+index d831d83f9..d4547c81c 100644
 --- a/src/plugins/linux-cp/lcp_interface.c
 +++ b/src/plugins/linux-cp/lcp_interface.c
-@@ -1182,6 +1182,17 @@ lcp_itf_pair_replace_end (void)
+@@ -1198,6 +1198,17 @@ lcp_itf_pair_replace_end (void)
    return (0);
  }
  
@@ -124,10 +124,10 @@ index 6f2b2e5c9..7f579234a 100644
  lcp_itf_pair_link_up_down (vnet_main_t *vnm, u32 hw_if_index, u32 flags)
  {
 diff --git a/src/plugins/linux-cp/lcp_interface.h b/src/plugins/linux-cp/lcp_interface.h
-index cfcd3925a..bb534308a 100644
+index 8cf6d3f4d..6b44d3d25 100644
 --- a/src/plugins/linux-cp/lcp_interface.h
 +++ b/src/plugins/linux-cp/lcp_interface.h
-@@ -136,6 +136,11 @@ extern void lcp_itf_pair_walk (lcp_itf_pair_walk_cb_t cb, void *ctx);
+@@ -137,6 +137,11 @@ extern void lcp_itf_pair_walk (lcp_itf_pair_walk_cb_t cb, void *ctx);
  extern int lcp_itf_pair_replace_begin (void);
  extern int lcp_itf_pair_replace_end (void);
  
@@ -140,7 +140,7 @@ index cfcd3925a..bb534308a 100644
   * Retreive the pair in the DP
   */
 diff --git a/src/plugins/linux-cp/lcp_nl.c b/src/plugins/linux-cp/lcp_nl.c
-index 85b644700..0b2536ccc 100644
+index 55d2ea542..5ac6ae273 100644
 --- a/src/plugins/linux-cp/lcp_nl.c
 +++ b/src/plugins/linux-cp/lcp_nl.c
 @@ -43,6 +43,7 @@ typedef enum nl_status_t_
