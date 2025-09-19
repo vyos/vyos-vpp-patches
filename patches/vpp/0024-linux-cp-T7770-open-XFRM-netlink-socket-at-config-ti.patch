@@ -1,0 +1,41 @@
+From c726229ecb073a456dcee38116909b01b47456ae Mon Sep 17 00:00:00 2001
+From: Denys Haryachyy <garyachy@users.noreply.github.com>
+Date: Thu, 18 Sep 2025 17:11:11 +0300
+Subject: [PATCH 24/24] linux-cp: T7770: open XFRM netlink socket at config
+ time. (#25)
+
+Type: fix
+
+Ensures XFRM netlink socket is opened only after explicit config is provided.
+---
+ src/plugins/linux-cp/lcp_xfrm_nl.c | 7 ++++---
+ 1 file changed, 4 insertions(+), 3 deletions(-)
+
+diff --git a/src/plugins/linux-cp/lcp_xfrm_nl.c b/src/plugins/linux-cp/lcp_xfrm_nl.c
+index 87092ad71..9c5bb88c6 100644
+--- a/src/plugins/linux-cp/lcp_xfrm_nl.c
++++ b/src/plugins/linux-cp/lcp_xfrm_nl.c
+@@ -558,6 +558,10 @@ lcp_xfrm_itf_pair_config (vlib_main_t *vm, unformat_input_t *input)
+     return clib_error_return (
+       0, "enable-route-mode-ipsec configuration is missing");
+ 
++  lcp_xfrm_nl_open_socket ();
++  vlib_process_signal_event (vlib_get_main (),
++			     ipsec_xfrm_expire_process_node.index, 0, 0);
++
+   return NULL;
+ }
+ 
+@@ -658,9 +662,6 @@ lcp_nl_xfrm_init (vlib_main_t *vm)
+   nm->clib_file_index = ~0;
+   nm->nl_logger = vlib_log_register_class ("nl", "xfrm");
+ 
+-  lcp_xfrm_nl_open_socket ();
+-  vlib_process_signal_event (vlib_get_main (),
+-			     ipsec_xfrm_expire_process_node.index, 0, 0);
+   return NULL;
+ }
+ 
+-- 
+2.39.5
+

@@ -1,7 +1,7 @@
 From 9960334b856d1d88ee66ad7a4f7b2949f20ae93a Mon Sep 17 00:00:00 2001
 From: Denys Haryachyy <garyachy@gmail.com>
 Date: Tue, 29 Jul 2025 17:39:29 +0300
-Subject: [PATCH 20/22] linux-cp: fix multicast route updates on address
+Subject: [PATCH 20/24] linux-cp: fix multicast route updates on address
  add/del
 
 Ensure multicast routes are only added when the first IPv4 address is configured on an interface,

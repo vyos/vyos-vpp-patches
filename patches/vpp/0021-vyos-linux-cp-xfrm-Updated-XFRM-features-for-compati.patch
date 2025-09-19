@@ -1,7 +1,7 @@
 From b01e1da6fc46a1ccda873b8ca3603ac81fdffd63 Mon Sep 17 00:00:00 2001
 From: zdc <taras@vyos.io>
 Date: Fri, 1 Aug 2025 17:16:28 +0300
-Subject: [PATCH 21/22] vyos: linux-cp: xfrm: Updated XFRM features for
+Subject: [PATCH 21/24] vyos: linux-cp: xfrm: Updated XFRM features for
  compatibility with VPP 25.06
 
 - Updated headers for `file_main` (as per 2fa70d66482adb21178bad9ebf0d748358cd416e)
