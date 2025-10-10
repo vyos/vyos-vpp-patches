@@ -1,7 +1,7 @@
 From adff1ecb857315e7d3e735efe31dc9b322183732 Mon Sep 17 00:00:00 2001
 From: Bheemappa Agasimundin <bagasimundin@marvell.com>
 Date: Tue, 27 Aug 2024 17:29:30 +0000
-Subject: [PATCH 06/24] linux-cp: fix esn and anti-replay issue
+Subject: [PATCH 06/25] linux-cp: fix esn and anti-replay issue
 
 This patch enables anti-replay when ESN is enabled on a Security
 Association (SA) configured via strongSwan.

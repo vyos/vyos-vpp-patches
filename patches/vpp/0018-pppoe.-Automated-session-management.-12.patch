@@ -1,7 +1,7 @@
 From 46a6d61368157eb7fb7bf382e3fda9776c5a9a42 Mon Sep 17 00:00:00 2001
 From: Denys Haryachyy <garyachy@users.noreply.github.com>
 Date: Thu, 15 May 2025 17:18:48 +0300
-Subject: [PATCH 18/24] pppoe. Automated session management. (#12)
+Subject: [PATCH 18/25] pppoe. Automated session management. (#12)
 
 Purpose of Changes:
 Automate PPPoE session management by sniffing LCP, IPCP and PADT control frames.
