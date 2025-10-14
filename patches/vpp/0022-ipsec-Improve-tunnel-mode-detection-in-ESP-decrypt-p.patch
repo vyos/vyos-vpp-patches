@@ -1,7 +1,7 @@
 From cfb1217a7954404891fe53c8aaa411ef9b142034 Mon Sep 17 00:00:00 2001
 From: Denys Haryachyy <garyachy@users.noreply.github.com>
 Date: Thu, 28 Aug 2025 12:34:32 +0300
-Subject: [PATCH 22/24] ipsec: Improve tunnel mode detection in ESP decrypt
+Subject: [PATCH 22/25] ipsec: Improve tunnel mode detection in ESP decrypt
  post-crypto (#24)
 
 Type: fix

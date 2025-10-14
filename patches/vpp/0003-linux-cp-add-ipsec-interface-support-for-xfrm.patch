@@ -1,7 +1,7 @@
 From 70286cf59119cc1c122d449ee3fd678646ae1b40 Mon Sep 17 00:00:00 2001
 From: Bheemappa Agasimundin <bagasimundin@marvell.com>
 Date: Tue, 5 Dec 2023 18:25:33 +0000
-Subject: [PATCH 03/24] linux-cp: add ipsec interface support for xfrm
+Subject: [PATCH 03/25] linux-cp: add ipsec interface support for xfrm
 
 This patch adds ipsec interface support for strongswan
 based SA configuration.
