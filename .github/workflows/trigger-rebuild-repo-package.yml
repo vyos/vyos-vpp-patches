@@ -37,7 +37,7 @@ jobs:
     uses: vyos/.github/.github/workflows/trigger-rebuild-repo-package.yml@current
     with:
       branch: ${{ github.ref_name }}
-      package_name: vpp  # We trigger the "vpp" package to rebuild, not "vyos-vpp-patches"
+      package_name: linux-kernel  # We trigger the "linux-kernel" package to rebuild, not "vyos-vpp-patches". T7932
     secrets:
       REMOTE_OWNER: ${{ secrets.REMOTE_OWNER }}
       REMOTE_REUSE_REPO: ${{ secrets.REMOTE_REUSE_REPO }}
