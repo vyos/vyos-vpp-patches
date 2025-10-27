@@ -31,9 +31,8 @@ jobs:
             vpp:
               - 'patches/vpp/**'
 
-  trigger-build:
+  trigger-build-vpp:
     needs: get_repo_name
-    if: needs.get_repo_name.outputs.vpp_changed == 'true'
     uses: vyos/.github/.github/workflows/trigger-rebuild-repo-package.yml@current
     with:
       branch: ${{ github.ref_name }}
@@ -45,7 +44,7 @@ jobs:
       PAT: ${{ secrets.PAT }}
 
   trigger-build-linux-kernel:
-    needs: get_repo_name
+    needs: trigger-build-vpp
     if: needs.get_repo_name.outputs.vpp_changed == 'true'
     uses: vyos/.github/.github/workflows/trigger-rebuild-repo-package.yml@current
     with:
