@@ -1,7 +1,7 @@
 From 76436e797f22e2e3160d044bdd18ff83154fec3e Mon Sep 17 00:00:00 2001
 From: zsdc <taras@vyos.io>
 Date: Tue, 23 Jul 2024 20:06:41 +0300
-Subject: [PATCH 17/25] linux-cp: Added routing for prefixes with no paths
+Subject: [PATCH 17/26] linux-cp: Added routing for prefixes with no paths
  available
 
 Fixed GRE crashes in IPv4 and IPv6 FIB.
