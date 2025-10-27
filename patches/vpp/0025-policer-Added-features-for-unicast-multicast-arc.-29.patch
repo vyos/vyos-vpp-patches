@@ -1,7 +1,7 @@
 From 7b605e618d34710680d0c46d93c3b1824398a1f0 Mon Sep 17 00:00:00 2001
 From: Fullroot <51375681+AndriiFullroot@users.noreply.github.com>
 Date: Thu, 9 Oct 2025 16:19:38 +0200
-Subject: [PATCH 25/25] policer: Added features for unicast/multicast arc.
+Subject: [PATCH 25/26] policer: Added features for unicast/multicast arc.
  (#29)
 
 For the PPPoE session, the input policer would not work

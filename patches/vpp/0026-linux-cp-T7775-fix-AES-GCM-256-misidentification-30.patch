@@ -1,0 +1,151 @@
+From d3bf1f02365d9b6d7680a2366927d421a66bb2e5 Mon Sep 17 00:00:00 2001
+From: Denys Haryachyy <garyachy@users.noreply.github.com>
+Date: Thu, 23 Oct 2025 17:25:11 +0300
+Subject: [PATCH 26/26] linux-cp: T7775: fix AES-GCM-256 misidentification
+ (#30)
+
+VPP was incorrectly identifying AES-GCM-256 IPsec SAs as AES-GCM-128,
+causing cryptographic key material mismatch with peer implementations
+like StrongSwan. This resulted in encryption/decryption failures and
+non-functional IPsec tunnels.
+
+Root cause: The libnl xfrmnl_sa_get_aead_params() function reports only
+the cipher key length (e.g., 128 bits for what should be AES-GCM-256)
+in the aead_key_len parameter, while extracting the full key material
+including padding into the key buffer (46 bytes instead of expected 36).
+---
+ src/plugins/linux-cp/lcp_ipsec.c | 90 ++++++++++++++++++++++++++------
+ 1 file changed, 75 insertions(+), 15 deletions(-)
+
+diff --git a/src/plugins/linux-cp/lcp_ipsec.c b/src/plugins/linux-cp/lcp_ipsec.c
+index c3a6362d4..6eb69984b 100644
+--- a/src/plugins/linux-cp/lcp_ipsec.c
++++ b/src/plugins/linux-cp/lcp_ipsec.c
+@@ -28,6 +28,70 @@
+ /* size in bytes */
+ #define GCM_SALT_SIZE 4
+ 
++/*
++ * Wrapper around xfrmnl_sa_get_aead_params that normalizes key length
++ * for GCM algorithms to handle libnl padding issues.
++ */
++static int
++lcp_xfrm_get_aead_params_normalized (struct xfrmnl_sa *sa, char *alg_name,
++				     u32 *aead_icv_len, u32 *aead_key_len,
++				     u32 *normalized_key_len, void *key)
++{
++  int ret =
++    xfrmnl_sa_get_aead_params (sa, alg_name, aead_icv_len, aead_key_len, key);
++  if (ret != 0)
++    return ret;
++
++  /* For GCM algorithms, libnl reports only the cipher key length in
++   * aead_key_len but extracts full key material including extra padding.
++   * We need to detect the actual key size by checking key material layout:
++   * - AES-GCM-128: 16-byte key + 4-byte salt (byte 16-19 = salt)
++   * - AES-GCM-192: 24-byte key + 4-byte salt (byte 24-27 = salt)
++   * - AES-GCM-256: 32-byte key + 4-byte salt (byte 32-35 = salt)
++   */
++  if (((u8 *) key)[32] != 0)
++    {
++      /* AES-GCM-256: 32-byte cipher key + 4-byte salt = 288 bits */
++      *normalized_key_len = 36 * 8;
++    }
++  else if (((u8 *) key)[24] != 0)
++    {
++      /* AES-GCM-192: 24-byte cipher key + 4-byte salt = 224 bits */
++      *normalized_key_len = 28 * 8;
++    }
++  else
++    {
++      /* AES-GCM-128: 16-byte cipher key + 4-byte salt = 160 bits */
++      *normalized_key_len = 20 * 8;
++    }
++
++  return 0;
++}
++
++/*
++ * Extract cipher key and salt for GCM algorithms based on detected variant.
++ */
++static void
++lcp_xfrm_extract_gcm_key_and_salt (ipsec_crypto_alg_t crypto_alg, void *key,
++				   ipsec_key_t *ck, u32 *salt)
++{
++  /* Determine correct cipher key size based on detected algorithm */
++  u32 cipher_key_bytes;
++  if (crypto_alg == IPSEC_CRYPTO_ALG_AES_GCM_128)
++    cipher_key_bytes = 16;
++  else if (crypto_alg == IPSEC_CRYPTO_ALG_AES_GCM_192)
++    cipher_key_bytes = 24;
++  else if (crypto_alg == IPSEC_CRYPTO_ALG_AES_GCM_256)
++    cipher_key_bytes = 32;
++  else
++    cipher_key_bytes = 16; /* fallback */
++
++  /* Extract cipher key and salt from Linux XFRM key material */
++  ck->len = cipher_key_bytes;
++  clib_memcpy_fast (ck->data, (u8 *) key, ck->len);
++  clib_memcpy_fast (salt, ((u8 *) key) + ck->len, GCM_SALT_SIZE);
++}
++
+ #define cpu_to_be(x, bits)                                                    \
+   if ((bits) == 16)                                                           \
+     x = clib_host_to_net_u16 (x);                                             \
+@@ -953,14 +1017,12 @@ nl_xfrm_sa_add (struct xfrmnl_sa *sa)
+     (50 == xfrmnl_sa_get_proto (sa)) ? IPSEC_PROTOCOL_ESP : IPSEC_PROTOCOL_AH;
+   ip_family = xfrmnl_sa_get_family (sa);
+ 
+-  if (0 == xfrmnl_sa_get_aead_params (sa, aead_alg_name, &aead_icv_len,
+-				      &aead_key_len, key))
++  if (0 == lcp_xfrm_get_aead_params_normalized (
++	     sa, aead_alg_name, &aead_icv_len, &aead_key_len, &key_len, key))
+     {
+       clib_memset (alg_name, 0, sizeof (alg_name));
+       clib_strncpy (alg_name, aead_alg_name, sizeof (alg_name) - 1);
+-      /* aead_key_len is cipher key bits; ip xfrm provides key||salt.
+-       * Represent total bits here so downstream salt extraction works. */
+-      key_len = aead_key_len + (GCM_SALT_SIZE * 8);
++
+       /* No separate integrity algorithm when AEAD is used */
+       integ_alg = IPSEC_INTEG_ALG_NONE;
+       auth_key_len = 0;
+@@ -991,6 +1053,7 @@ nl_xfrm_sa_add (struct xfrmnl_sa *sa)
+     }
+ 
+   get_crypto_algo (alg_name, key_len, &crypto_alg);
++
+   if (crypto_alg == IPSEC_CRYPTO_N_ALG)
+     {
+       NL_XFRM_ERR ("Invalid/Unsupported crypto algo: %s keylen: %u", alg_name,
+@@ -999,20 +1062,17 @@ nl_xfrm_sa_add (struct xfrmnl_sa *sa)
+     }
+ 
+   /*
+-   * Key_len/key here includes salt size/value. As per rfc5282
+-   * GCM salt size will be 4B which will be after cipher key
++   * Process crypto key and extract salt for GCM algorithms.
++   * Use proper key material size based on detected algorithm.
+    */
+   if (IPSEC_CRYPTO_ALG_IS_GCM (crypto_alg))
++    lcp_xfrm_extract_gcm_key_and_salt (crypto_alg, key, &ck, &salt);
++  else
+     {
+-      key_len -= GCM_SALT_SIZE * 8;
+-      clib_memcpy_fast (&salt, ((u8 *) key) + (key_len / 8), GCM_SALT_SIZE);
++      /* Non-GCM: use key as-is */
++      ck.len = key_len / 8;
++      clib_memcpy_fast (ck.data, (u8 *) key, ck.len);
+     }
+-  /*
+-   * Else for CCM if supported, salt size would be 3B and needs
+-   * to be handled here accordingly
+-   */
+-  ck.len = key_len / 8;
+-  clib_memcpy_fast (ck.data, (u8 *) key, (key_len / 8));
+ 
+   is_ipv6 = (ip_family == AF_INET) ? 0 : 1;
+ 
+-- 
+2.39.5
+
