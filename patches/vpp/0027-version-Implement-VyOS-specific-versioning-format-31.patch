@@ -1,0 +1,49 @@
+From f449680494d7851af849c68bdc4f75cd6d1b9e6d Mon Sep 17 00:00:00 2001
+From: zdc <zdc@users.noreply.github.com>
+Date: Fri, 31 Oct 2025 16:47:41 +0200
+Subject: [PATCH 27/27] version: Implement VyOS-specific versioning format
+ (#31)
+
+Modify the version script to generate VyOS-specific version strings that include UTC
+timestamp of a latest commit, commit hash, and dirty status indicator.
+
+New format: `vyos<UTC_timestamp>.<commit_hash>[.dirty]`
+
+Example version string: `24.06.0-123+vyos20251030143522.a1b2c3d.dirty`
+
+Justification:
+
+* Timestamp ensures proper version ordering: builds with the same number of commits after a
+tag will be correctly ordered by time, guaranteeing that newer commits always supersede older
+ones in package managers.
+* The '-dirty' suffix in debian_revision violates Debian policy and breaks dpkg logic. Debian
+uses '-' as the separator between upstream_version and debian_revision. Using '-dirty' causes
+dpkg to misinterpret the version string. Switching to '.dirty' follows Debian conventions
+where '.' is a valid separator within the revision field.
+
+This versioning scheme follows Debian policy and provides precise build identification with
+a commit timestamp, commit hash, and repository state.
+---
+ src/scripts/version | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/src/scripts/version b/src/scripts/version
+index b8748af15..4e517da21 100755
+--- a/src/scripts/version
++++ b/src/scripts/version
+@@ -43,7 +43,11 @@ fi
+ 
+ git rev-parse 2> /dev/null
+ if [ $? == 0 ]; then
+-    CMT=$(git describe --dirty --long --match 'v*'| cut -s -d- -f3,4)
++    # Additional variables for VyOS versioning
++    COMMIT_HASH=$(git rev-parse --short HEAD)
++    COMMIT_DATE=$(TZ=UTC git --no-pager log -1 --format=%ad --date=format:%Y%m%d%H%M%S)
++    DIRTY=$(git diff-index --quiet HEAD -- && echo "" || echo ".dirty")
++    CMT="vyos${COMMIT_DATE}.${COMMIT_HASH}${DIRTY}"
+ else
+     CMT=$(echo ${vstring} | cut -s -d- -f3,4)
+ fi
+-- 
+2.39.5
+
