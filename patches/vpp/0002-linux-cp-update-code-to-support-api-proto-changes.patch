@@ -1,7 +1,7 @@
 From e238d4e62e66ed9a9e01425a844d57cc33ec316e Mon Sep 17 00:00:00 2001
 From: Kommula Shiva Shankar <kshankar@marvell.com>
 Date: Tue, 6 Feb 2024 23:23:14 +0530
-Subject: [PATCH 02/27] linux-cp: update code to support api proto changes
+Subject: [PATCH 02/28] linux-cp: update code to support api proto changes
 
 Type: fix
 
