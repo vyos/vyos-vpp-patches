@@ -1,7 +1,7 @@
 From 56275b6a0dbe20b8eb77a16b6525a34ab71b33ca Mon Sep 17 00:00:00 2001
 From: zdc <taras@vyos.io>
 Date: Wed, 12 Feb 2025 12:29:57 +0200
-Subject: [PATCH 08/27] linux-cp: Added build dependency for XFRM
+Subject: [PATCH 08/28] linux-cp: Added build dependency for XFRM
 
 Added `libnl-xfrm-3-200` to build dependencies to make build
 `linux-cp` with XFRM possible.

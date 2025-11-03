@@ -1,7 +1,7 @@
 From a5f3779078cd93cfc821a23c681af68d1a3a39cf Mon Sep 17 00:00:00 2001
 From: zsdc <taras@vyos.io>
 Date: Tue, 23 Jul 2024 20:06:41 +0300
-Subject: [PATCH 09/27] linux-cp: Added routing for prefixes with no paths
+Subject: [PATCH 09/28] linux-cp: Added routing for prefixes with no paths
  available
 
 A new CLI and configuration file option is available:

@@ -1,0 +1,243 @@
+From d1f8e7951245036b730c4ce9b9d40b54538d80e9 Mon Sep 17 00:00:00 2001
+From: Fullroot <51375681+AndriiFullroot@users.noreply.github.com>
+Date: Mon, 3 Nov 2025 15:06:52 +0100
+Subject: [PATCH 28/28] DET44: IPFIX support for DET44. (#28)
+
+Added IPFIX nat event messages to DET44.
+
+Signed-off-by: Andrii Melnychenko <a.melnychenko@vyos.io>
+---
+ src/plugins/nat/det44/det44.c        |  2 +-
+ src/plugins/nat/det44/det44.h        | 31 +++++++++++++++++++++++++++-
+ src/plugins/nat/det44/det44_api.c    |  8 +++----
+ src/plugins/nat/det44/det44_cli.c    |  4 ++--
+ src/plugins/nat/det44/det44_in2out.c | 19 ++++++++++++++---
+ src/plugins/nat/det44/det44_out2in.c |  6 +++---
+ 6 files changed, 56 insertions(+), 14 deletions(-)
+
+diff --git a/src/plugins/nat/det44/det44.c b/src/plugins/nat/det44/det44.c
+index f251bc9c6..22227ca30 100644
+--- a/src/plugins/nat/det44/det44.c
++++ b/src/plugins/nat/det44/det44.c
+@@ -332,7 +332,7 @@ det44_expire_walk_fn (vlib_main_t * vm, vlib_node_runtime_t * rt,
+ 	      // close expired sessions
+ 	      if (ses->in_port && (ses->expire < now))
+ 		{
+-		  snat_det_ses_close (mp, ses);
++		  snat_det_ses_close (vm->thread_index, mp, ses);
+ 		}
+ 	    }
+ 	}
+diff --git a/src/plugins/nat/det44/det44.h b/src/plugins/nat/det44/det44.h
+index 683f554f0..edd202f27 100644
+--- a/src/plugins/nat/det44/det44.h
++++ b/src/plugins/nat/det44/det44.h
+@@ -407,10 +407,39 @@ snat_det_ses_create (u32 thread_index, snat_det_map_t * dm,
+ }
+ 
+ static_always_inline void
+-snat_det_ses_close (snat_det_map_t * dm, snat_det_session_t * ses)
++snat_det_ses_close (u32 thread_index, snat_det_map_t * dm, snat_det_session_t * ses)
+ {
++  det44_main_t *dmain = &det44_main;
++  u16 ses_in_port = ses->in_port;
++  u32 user_index = 0;
++  ip4_address_t in_addr, out_addr;
++  u32 out_offset;
++
+   if (clib_atomic_bool_cmp_and_swap (&ses->in_port, ses->in_port, 0))
+     {
++
++      u8 proto = 6; /* tcp */
++      if (ses->state == DET44_SESSION_UDP_ACTIVE)
++	proto = 17; /* udp */
++      else if (ses->state == DET44_SESSION_ICMP_ACTIVE)
++	proto = 1; /* icmp 1*/
++      else if (ses->state == DET44_SESSION_UNKNOWN)
++	proto = 0;
++
++      user_index = ses - dm->sessions;
++      user_index /= DET44_SES_PER_USER;
++
++      in_addr.as_u32 = clib_host_to_net_u32 (
++	clib_net_to_host_u32 (dm->in_addr.as_u32) + user_index);
++
++      out_offset = user_index / dm->sharing_ratio;
++      out_addr.as_u32 = clib_host_to_net_u32 (
++	clib_net_to_host_u32 (dm->out_addr.as_u32) + out_offset);
++
++      nat_ipfix_logging_nat44_ses_delete (
++	thread_index, in_addr.as_u32, out_addr.as_u32, proto, ses_in_port,
++	ses->out.out_port, dmain->outside_fib_index); /* add vrf index */
++
+       ses->out.as_u64 = 0;
+       clib_atomic_add_fetch (&dm->ses_num, -1);
+     }
+diff --git a/src/plugins/nat/det44/det44_api.c b/src/plugins/nat/det44/det44_api.c
+index c7e17dfd1..ffcf0df70 100644
+--- a/src/plugins/nat/det44/det44_api.c
++++ b/src/plugins/nat/det44/det44_api.c
+@@ -170,7 +170,7 @@ vl_api_det44_close_session_out_t_handler (vl_api_det44_close_session_out_t
+       rv = VNET_API_ERROR_NO_SUCH_ENTRY;
+       goto send_reply;
+     }
+-  snat_det_ses_close (m, ses);
++  snat_det_ses_close (dm->vnet_main->vlib_main->thread_index, m, ses);
+ 
+ send_reply:
+   REPLY_MACRO (VL_API_DET44_CLOSE_SESSION_OUT_REPLY);
+@@ -204,7 +204,7 @@ vl_api_det44_close_session_in_t_handler (vl_api_det44_close_session_in_t * mp)
+       rv = VNET_API_ERROR_NO_SUCH_ENTRY;
+       goto send_reply;
+     }
+-  snat_det_ses_close (m, ses);
++  snat_det_ses_close (dm->vnet_main->vlib_main->thread_index, m, ses);
+ 
+ send_reply:
+   REPLY_MACRO (VL_API_DET44_CLOSE_SESSION_OUT_REPLY);
+@@ -505,7 +505,7 @@ vl_api_nat_det_close_session_out_t_handler (vl_api_nat_det_close_session_out_t
+       rv = VNET_API_ERROR_NO_SUCH_ENTRY;
+       goto send_reply;
+     }
+-  snat_det_ses_close (m, ses);
++  snat_det_ses_close (dm->vnet_main->vlib_main->thread_index, m, ses);
+ 
+ send_reply:
+   REPLY_MACRO (VL_API_NAT_DET_CLOSE_SESSION_OUT_REPLY);
+@@ -540,7 +540,7 @@ vl_api_nat_det_close_session_in_t_handler (vl_api_nat_det_close_session_in_t *
+       rv = VNET_API_ERROR_NO_SUCH_ENTRY;
+       goto send_reply;
+     }
+-  snat_det_ses_close (m, ses);
++  snat_det_ses_close (dm->vnet_main->vlib_main->thread_index, m, ses);
+ 
+ send_reply:
+   REPLY_MACRO (VL_API_NAT_DET_CLOSE_SESSION_OUT_REPLY);
+diff --git a/src/plugins/nat/det44/det44_cli.c b/src/plugins/nat/det44/det44_cli.c
+index 5d0ad0436..8c0e38853 100644
+--- a/src/plugins/nat/det44/det44_cli.c
++++ b/src/plugins/nat/det44/det44_cli.c
+@@ -245,7 +245,7 @@ det44_close_session_out_fn (vlib_main_t * vm,
+       if (!ses)
+ 	vlib_cli_output (vm, "no match");
+       else
+-	snat_det_ses_close (mp, ses);
++	snat_det_ses_close (vm->thread_index, mp, ses);
+     }
+ 
+ done:
+@@ -297,7 +297,7 @@ det44_close_session_in_fn (vlib_main_t * vm,
+       if (!ses)
+ 	vlib_cli_output (vm, "no match");
+       else
+-	snat_det_ses_close (mp, ses);
++	snat_det_ses_close (vm->thread_index, mp, ses);
+     }
+ 
+ done:
+diff --git a/src/plugins/nat/det44/det44_in2out.c b/src/plugins/nat/det44/det44_in2out.c
+index 39a9ecaba..f3ebcd284 100644
+--- a/src/plugins/nat/det44/det44_in2out.c
++++ b/src/plugins/nat/det44/det44_in2out.c
+@@ -217,6 +217,10 @@ icmp_match_in2out_det (vlib_node_runtime_t * node,
+ 	  b0->error = node->errors[DET44_IN2OUT_ERROR_OUT_OF_PORTS];
+ 	  goto out;
+ 	}
++	nat_ipfix_logging_nat44_ses_create (
++	  thread_index, in_addr.as_u32, new_addr0.as_u32, 1,
++	  echo0->identifier, key0.out_port, dm->outside_fib_index);
++
+     }
+ 
+   if (PREDICT_FALSE
+@@ -536,6 +540,9 @@ VLIB_NODE_FN (det44_in2out_node) (vlib_main_t * vm,
+ 	      next0 = DET44_IN2OUT_NEXT_ICMP_ERROR;
+ 	      goto trace0;
+ 	    }
++		nat_ipfix_logging_nat44_ses_create (
++		  thread_index, ip0->src_address.as_u32, new_addr0.as_u32, ip0->protocol,
++		  tcp0->src_port, key0.out_port, dm->outside_fib_index);
+ 	}
+ 
+       old_port0 = udp0->src_port;
+@@ -562,7 +569,7 @@ VLIB_NODE_FN (det44_in2out_node) (vlib_main_t * vm,
+ 	    ses0->state = DET44_SESSION_TCP_FIN_WAIT;
+ 	  else if (tcp0->flags & TCP_FLAG_ACK
+ 		   && ses0->state == DET44_SESSION_TCP_FIN_WAIT)
+-	    snat_det_ses_close (mp0, ses0);
++	    snat_det_ses_close (thread_index, mp0, ses0);
+ 	  else if (tcp0->flags & TCP_FLAG_FIN
+ 		   && ses0->state == DET44_SESSION_TCP_CLOSE_WAIT)
+ 	    ses0->state = DET44_SESSION_TCP_LAST_ACK;
+@@ -706,6 +713,9 @@ VLIB_NODE_FN (det44_in2out_node) (vlib_main_t * vm,
+ 	      next1 = DET44_IN2OUT_NEXT_ICMP_ERROR;
+ 	      goto trace1;
+ 	    }
++		nat_ipfix_logging_nat44_ses_create (
++		  thread_index, ip1->src_address.as_u32, new_addr1.as_u32, ip1->protocol,
++		  tcp1->src, key1.out_port, dm->outside_fib_index);
+ 	}
+ 
+       old_port1 = udp1->src_port;
+@@ -732,7 +742,7 @@ VLIB_NODE_FN (det44_in2out_node) (vlib_main_t * vm,
+ 	    ses1->state = DET44_SESSION_TCP_FIN_WAIT;
+ 	  else if (tcp1->flags & TCP_FLAG_ACK
+ 		   && ses1->state == DET44_SESSION_TCP_FIN_WAIT)
+-	    snat_det_ses_close (mp1, ses1);
++	    snat_det_ses_close (thread_index, mp1, ses1);
+ 	  else if (tcp1->flags & TCP_FLAG_FIN
+ 		   && ses1->state == DET44_SESSION_TCP_CLOSE_WAIT)
+ 	    ses1->state = DET44_SESSION_TCP_LAST_ACK;
+@@ -904,6 +914,9 @@ VLIB_NODE_FN (det44_in2out_node) (vlib_main_t * vm,
+ 	      next0 = DET44_IN2OUT_NEXT_ICMP_ERROR;
+ 	      goto trace00;
+ 	    }
++		nat_ipfix_logging_nat44_ses_create (
++		  thread_index, ip0->src_address.as_u32, new_addr0.as_u32, ip0->protocol,
++		  tcp0->src, key0.out_port, dm->outside_fib_index);
+ 	}
+ 
+       old_port0 = udp0->src_port;
+@@ -930,7 +943,7 @@ VLIB_NODE_FN (det44_in2out_node) (vlib_main_t * vm,
+ 	    ses0->state = DET44_SESSION_TCP_FIN_WAIT;
+ 	  else if (tcp0->flags & TCP_FLAG_ACK
+ 		   && ses0->state == DET44_SESSION_TCP_FIN_WAIT)
+-	    snat_det_ses_close (mp0, ses0);
++	    snat_det_ses_close (thread_index, mp0, ses0);
+ 	  else if (tcp0->flags & TCP_FLAG_FIN
+ 		   && ses0->state == DET44_SESSION_TCP_CLOSE_WAIT)
+ 	    ses0->state = DET44_SESSION_TCP_LAST_ACK;
+diff --git a/src/plugins/nat/det44/det44_out2in.c b/src/plugins/nat/det44/det44_out2in.c
+index dd89606ff..04e9fbdbc 100644
+--- a/src/plugins/nat/det44/det44_out2in.c
++++ b/src/plugins/nat/det44/det44_out2in.c
+@@ -502,7 +502,7 @@ VLIB_NODE_FN (det44_out2in_node) (vlib_main_t * vm,
+ 	    ses0->state = DET44_SESSION_TCP_CLOSE_WAIT;
+ 	  else if (tcp0->flags & TCP_FLAG_ACK
+ 		   && ses0->state == DET44_SESSION_TCP_LAST_ACK)
+-	    snat_det_ses_close (mp0, ses0);
++	    snat_det_ses_close (thread_index, mp0, ses0);
+ 
+ 	  sum0 = tcp0->checksum;
+ 	  sum0 = ip_csum_update (sum0, old_addr0.as_u32, new_addr0.as_u32,
+@@ -620,7 +620,7 @@ VLIB_NODE_FN (det44_out2in_node) (vlib_main_t * vm,
+ 	    ses1->state = DET44_SESSION_TCP_CLOSE_WAIT;
+ 	  else if (tcp1->flags & TCP_FLAG_ACK
+ 		   && ses1->state == DET44_SESSION_TCP_LAST_ACK)
+-	    snat_det_ses_close (mp1, ses1);
++	    snat_det_ses_close (thread_index, mp1, ses1);
+ 
+ 	  sum1 = tcp1->checksum;
+ 	  sum1 = ip_csum_update (sum1, old_addr1.as_u32, new_addr1.as_u32,
+@@ -765,7 +765,7 @@ VLIB_NODE_FN (det44_out2in_node) (vlib_main_t * vm,
+ 	    ses0->state = DET44_SESSION_TCP_CLOSE_WAIT;
+ 	  else if (tcp0->flags & TCP_FLAG_ACK
+ 		   && ses0->state == DET44_SESSION_TCP_LAST_ACK)
+-	    snat_det_ses_close (mp0, ses0);
++	    snat_det_ses_close (thread_index, mp0, ses0);
+ 
+ 	  sum0 = tcp0->checksum;
+ 	  sum0 = ip_csum_update (sum0, old_addr0.as_u32, new_addr0.as_u32,
+-- 
+2.39.5
+
