@@ -1,7 +1,7 @@
 From 759521ff07dcfb69a09d432e943319a8422ee47c Mon Sep 17 00:00:00 2001
 From: Denys Haryachyy <garyachy@gmail.com>
 Date: Wed, 29 Jan 2025 11:57:01 +0200
-Subject: [PATCH 11/28] LCP: Improved lcp resync CLI and API to wait until
+Subject: [PATCH 11/29] LCP: Improved lcp resync CLI and API to wait until
  Netlink sync is finished.
 
 (cherry picked from commit b19375e7e42023a5cdca84f259036574ccd9da77)
@@ -341,5 +341,5 @@ index 000000000..f9005b6fc
 + * End:
 + */
 -- 
-2.39.5
+2.39.5 (Apple Git-154)
 

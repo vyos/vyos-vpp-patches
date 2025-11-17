@@ -1,7 +1,7 @@
 From 99f5622c6945c0055e1a3dea4cd925bee1fecf31 Mon Sep 17 00:00:00 2001
 From: zdc <taras@vyos.io>
 Date: Tue, 11 Feb 2025 20:33:46 +0200
-Subject: [PATCH 12/28] build: Fixed compatibility with build on Debian 12
+Subject: [PATCH 12/29] build: Fixed compatibility with build on Debian 12
 
 (cherry picked from commit ca7d5bcd381edb68e9d4ae6ffa915bda4d2c1adf)
 ---
@@ -21,5 +21,5 @@ index 19dafb7c6..d8f1061d5 100644
  	# TODO: remove once ubuntu 20.04 is deprecated and extras/scripts/checkstyle.sh is upgraded to -15
  	export CLANG_FORMAT_VER=15
 -- 
-2.39.5
+2.39.5 (Apple Git-154)
 
