@@ -1,7 +1,7 @@
 From f449680494d7851af849c68bdc4f75cd6d1b9e6d Mon Sep 17 00:00:00 2001
 From: zdc <zdc@users.noreply.github.com>
 Date: Fri, 31 Oct 2025 16:47:41 +0200
-Subject: [PATCH 27/28] version: Implement VyOS-specific versioning format
+Subject: [PATCH 27/29] version: Implement VyOS-specific versioning format
  (#31)
 
 Modify the version script to generate VyOS-specific version strings that include UTC
@@ -45,5 +45,5 @@ index b8748af15..4e517da21 100755
      CMT=$(echo ${vstring} | cut -s -d- -f3,4)
  fi
 -- 
-2.39.5
+2.39.5 (Apple Git-154)
 

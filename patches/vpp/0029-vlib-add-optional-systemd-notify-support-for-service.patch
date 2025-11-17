@@ -1,0 +1,272 @@
+From a3e1cc07bed782b695c1376994a242798ba5c14d Mon Sep 17 00:00:00 2001
+From: zdc <taras@vyos.io>
+Date: Fri, 7 Nov 2025 21:17:20 +0200
+Subject: [PATCH 29/29] vlib: add optional systemd notify support for service
+ readiness
+
+Add optional systemd sd_notify() integration to signal when VPP is
+fully initialized and ready to process packets. This allows systemd
+to properly track VPP startup and manage service dependencies using
+Type=notify service configuration.
+
+Features:
+
+- Build-time optional: disabled by default, enable with
+  -DVPP_ENABLE_SYSTEMD_NOTIFY=ON
+- Runtime optional: requires 'systemd-notify' in unix config section
+- Platform independent: gracefully handles systems without systemd
+- Notification sent after startup configuration is executed, ensuring
+  all plugins and configurations are ready
+
+Implementation:
+
+- CMake option VPP_ENABLE_SYSTEMD_NOTIFY detects and links libsystemd
+- Preprocessor define VLIB_SYSTEMD_NOTIFY_ENABLED for conditional compilation
+- Static function vlib_unix_systemd_notify_ready() in unix/main.c
+- Called from startup_config_process() after config execution completes
+  (or immediately if no startup config file is specified)
+- UNIX_FLAG_SYSTEMD_NOTIFY remains unconditional for ABI stability
+
+Usage:
+
+Install dependencies (if building with systemd support):
+`make VPP_ENABLE_SYSTEMD_NOTIFY=ON install-dep`
+
+Build with systemd support:
+`make VPP_EXTRA_CMAKE_ARGS="-DVPP_ENABLE_SYSTEMD_NOTIFY=ON" pkg-deb`
+
+Enable in startup.conf:
+
+```
+  unix {
+    systemd-notify
+  }
+```
+
+Systemd service file:
+
+```
+[Service]
+Type=notify
+```
+---
+ Makefile                | 10 +++++++++
+ src/pkg/CMakeLists.txt  |  6 +++++
+ src/vlib/CMakeLists.txt | 21 ++++++++++++++++++
+ src/vlib/config.h.in    |  1 +
+ src/vlib/unix/main.c    | 49 +++++++++++++++++++++++++++++++++++++++++
+ src/vlib/unix/unix.h    |  1 +
+ 6 files changed, 88 insertions(+)
+
+diff --git a/Makefile b/Makefile
+index aa54f6089..758e7a9aa 100644
+--- a/Makefile
++++ b/Makefile
+@@ -111,6 +111,11 @@ DEB_DEPENDS += nasm libnuma-dev # for make-ext-deps
+ DEB_DEPENDS += libnl-xfrm-3-200 # for linux-cp XFRM extension
+ DEB_DEPENDS += libunwind8 # for linux-cp XFRM extension
+ 
++# Conditional dependencies based on build options
++ifneq ($(VPP_ENABLE_SYSTEMD_NOTIFY),)
++DEB_DEPENDS += libsystemd-dev
++endif
++
+ LIBFFI=libffi6 # works on all but 20.04 and debian-testing
+ ifeq ($(OS_VERSION_ID),24.04)
+ 	DEB_DEPENDS += libssl-dev
+@@ -169,6 +174,11 @@ RPM_DEPENDS += libnl3-devel libmnl-devel
+ RPM_DEPENDS += nasm
+ RPM_DEPENDS += socat
+ 
++# Conditional dependencies based on build options
++ifneq ($(VPP_ENABLE_SYSTEMD_NOTIFY),)
++RPM_DEPENDS += systemd-devel
++endif
++
+ ifeq ($(OS_ID),fedora)
+ 	RPM_DEPENDS += dnf-utils
+ 	RPM_DEPENDS += subunit subunit-devel
+diff --git a/src/pkg/CMakeLists.txt b/src/pkg/CMakeLists.txt
+index 5fa2826ad..cddffd35b 100644
+--- a/src/pkg/CMakeLists.txt
++++ b/src/pkg/CMakeLists.txt
+@@ -51,6 +51,12 @@ foreach(l ${os_release})
+ endforeach()
+ 
+ set(VPP_DEB_BUILD_DEPENDS "python3-all, python3-setuptools")
++
++# Add systemd build dependency if systemd notify support is enabled
++if(VPP_ENABLE_SYSTEMD_NOTIFY)
++  set(VPP_DEB_BUILD_DEPENDS "${VPP_DEB_BUILD_DEPENDS}, libsystemd-dev")
++endif()
++
+ set(VPP_DEB_WITH_PYTHON2 "no")
+ 
+ foreach(f rules changelog control)
+diff --git a/src/vlib/CMakeLists.txt b/src/vlib/CMakeLists.txt
+index b4fc17751..5f0e87c48 100644
+--- a/src/vlib/CMakeLists.txt
++++ b/src/vlib/CMakeLists.txt
+@@ -12,6 +12,7 @@
+ # limitations under the License.
+ 
+ option(VPP_BUFFER_FAULT_INJECTOR "Include the buffer fault injector" OFF)
++option(VPP_ENABLE_SYSTEMD_NOTIFY "Enable systemd notify support" OFF)
+ 
+ ##############################################################################
+ # Generate vlib/config.h
+@@ -22,6 +23,22 @@ else()
+   set(BUFFER_ALLOC_FAULT_INJECTOR 0 CACHE STRING "fault injector off")
+ endif()
+ 
++if(VPP_ENABLE_SYSTEMD_NOTIFY)
++  # Check for systemd library
++  vpp_find_path(SYSTEMD_INCLUDE_DIR systemd/sd-daemon.h)
++  vpp_find_library(SYSTEMD_LIB NAMES systemd)
++  
++  if(SYSTEMD_INCLUDE_DIR AND SYSTEMD_LIB)
++    message(STATUS "systemd found at ${SYSTEMD_LIB}")
++    set(SYSTEMD_NOTIFY_ENABLED 1 CACHE STRING "systemd notify enabled")
++  else()
++    message(WARNING "VPP_ENABLE_SYSTEMD_NOTIFY is ON but systemd library not found")
++    set(SYSTEMD_NOTIFY_ENABLED 0 CACHE STRING "systemd notify disabled")
++  endif()
++else()
++  set(SYSTEMD_NOTIFY_ENABLED 0 CACHE STRING "systemd notify disabled")
++endif()
++
+ if(VPP_PLATFORM_BUFFER_ALIGN)
+   set(VLIB_BUFFER_ALIGN ${VPP_PLATFORM_BUFFER_ALIGN})
+ else()
+@@ -73,6 +90,10 @@ endif()
+ 
+ set(VLIB_LIBS vppinfra svm ${CMAKE_DL_LIBS} ${EPOLL_LIB})
+ 
++if(SYSTEMD_NOTIFY_ENABLED)
++  list(APPEND VLIB_LIBS ${SYSTEMD_LIB})
++endif()
++
+ vpp_find_path(LIBIBERTY_INCLUDE_DIR libiberty/demangle.h)
+ vpp_find_library(LIBIBERTY_LIB NAMES iberty libiberty)
+ 
+diff --git a/src/vlib/config.h.in b/src/vlib/config.h.in
+index b233b327d..83c1e1335 100644
+--- a/src/vlib/config.h.in
++++ b/src/vlib/config.h.in
+@@ -20,5 +20,6 @@
+ #define VLIB_BUFFER_ALIGN @VLIB_BUFFER_ALIGN@
+ #define VLIB_BUFFER_ALLOC_FAULT_INJECTOR @BUFFER_ALLOC_FAULT_INJECTOR@
+ #define VLIB_PROCESS_LOG2_STACK_SIZE @VLIB_PROCESS_LOG2_STACK_SIZE@
++#define VLIB_SYSTEMD_NOTIFY_ENABLED @SYSTEMD_NOTIFY_ENABLED@
+ 
+ #endif
+diff --git a/src/vlib/unix/main.c b/src/vlib/unix/main.c
+index cd1f1e1c9..927bcdc0a 100644
+--- a/src/vlib/unix/main.c
++++ b/src/vlib/unix/main.c
+@@ -54,6 +54,10 @@
+ #include <sys/resource.h>
+ #include <unistd.h>
+ 
++#if VLIB_SYSTEMD_NOTIFY_ENABLED
++#include <systemd/sd-daemon.h>
++#endif
++
+ #ifdef HAVE_LIBIBERTY
+ #include <libiberty/demangle.h>
+ #endif
+@@ -79,6 +83,27 @@ unix_main_init (vlib_main_t * vm)
+ 
+ VLIB_INIT_FUNCTION (unix_main_init);
+ 
++#if VLIB_SYSTEMD_NOTIFY_ENABLED
++static void
++vlib_unix_systemd_notify_ready (void)
++{
++  unix_main_t *um = &unix_main;
++
++  /* Only notify if configured to do so */
++  if (um->flags & UNIX_FLAG_SYSTEMD_NOTIFY)
++    {
++      /* Notify systemd that we are ready */
++      int rc = sd_notify (0, "READY=1");
++      if (rc < 0)
++	{
++	  clib_warning ("systemd sd_notify failed: %s", strerror (-rc));
++	}
++      /* rc > 0 means successfully notified, rc == 0 means not running under
++       * systemd or notifications disabled - both are normal, no logging */
++    }
++}
++#endif /* VLIB_SYSTEMD_NOTIFY_ENABLED */
++
+ static int
+ unsetup_signal_handlers (int sig)
+ {
+@@ -358,6 +383,12 @@ startup_config_process (vlib_main_t * vm,
+ 
+   if (!um->startup_config_filename)
+     {
++#if VLIB_SYSTEMD_NOTIFY_ENABLED
++      /* Notify systemd that VPP is fully ready.
++       * This ensures dependent services only start after VPP is fully configured
++       * and ready to process packets. */
++      vlib_unix_systemd_notify_ready ();
++#endif
+       return 0;
+     }
+ 
+@@ -368,6 +399,13 @@ startup_config_process (vlib_main_t * vm,
+ 
+   unformat_free (&in);
+ 
++#if VLIB_SYSTEMD_NOTIFY_ENABLED
++  /* Notify systemd that VPP is fully ready after configuration is loaded.
++   * This ensures dependent services only start after VPP is fully configured
++   * and ready to process packets. */
++  vlib_unix_systemd_notify_ready ();
++#endif
++
+   return 0;
+ }
+ 
+@@ -405,6 +443,10 @@ unix_config (vlib_main_t * vm, unformat_input_t * input)
+ 	um->flags |= UNIX_FLAG_NOCOLOR;
+       else if (unformat (input, "nobanner"))
+ 	um->flags |= UNIX_FLAG_NOBANNER;
++#if VLIB_SYSTEMD_NOTIFY_ENABLED
++      else if (unformat (input, "systemd-notify"))
++	um->flags |= UNIX_FLAG_SYSTEMD_NOTIFY;
++#endif
+       else if (unformat (input, "cli-prompt %s", &cli_prompt))
+ 	vlib_unix_cli_set_prompt (cli_prompt);
+       else
+@@ -596,6 +638,13 @@ unix_config (vlib_main_t * vm, unformat_input_t * input)
+  * @cfgcmd{nobanner}
+  * Do not display startup banner.
+  *
++ * @cfgcmd{systemd-notify}
++ * Enable systemd notification when VPP is fully initialized and ready.
++ * Allows systemd to properly track VPP startup and manage service dependencies.
++ * This option is only available if VPP was built with systemd support
++ * (VPP_ENABLE_SYSTEMD_NOTIFY=ON). If not built with this support, the option
++ * will be ignored.
++ *
+  * @cfgcmd{exec, &lt;filename&gt;}
+  * @par <code>startup-config &lt;filename&gt;</code>
+  * Read startup operational configuration from @c filename.
+diff --git a/src/vlib/unix/unix.h b/src/vlib/unix/unix.h
+index d0b7a4c70..eb2dc4936 100644
+--- a/src/vlib/unix/unix.h
++++ b/src/vlib/unix/unix.h
+@@ -62,6 +62,7 @@ typedef struct
+ #define UNIX_FLAG_NOSYSLOG (1 << 2)
+ #define UNIX_FLAG_NOCOLOR (1 << 3)
+ #define UNIX_FLAG_NOBANNER (1 << 4)
++#define UNIX_FLAG_SYSTEMD_NOTIFY (1 << 5)
+ 
+ 
+   /* CLI listen socket. */
+-- 
+2.39.5 (Apple Git-154)
+
