@@ -1,0 +1,51 @@
+From 4190c30981fd5ef9b0f50a116d2cb710c50ca33d Mon Sep 17 00:00:00 2001
+From: Denys Haryachyy <garyachy@users.noreply.github.com>
+Date: Tue, 30 Dec 2025 17:34:10 +0200
+Subject: [PATCH 30/30] linux-cp: T8116: skip SA operations for non-VPP
+ interface addresses (#35)
+
+When IPsec SA notifications arrive from the kernel with endpoint addresses
+that don't belong to any VPP interface, attempting to create or delete the
+SA would result in crash.
+
+This occurred when strongSwan or other IPsec daemons manage SAs for
+connections that don't involve VPP-managed interfaces, resulting in
+lcp_xfrm_get_matching_iface() returning ~0 (invalid interface index).
+
+Add early exit checks in both nl_xfrm_sa_add() and nl_xfrm_sa_del() to
+skip all SA operations when no matching VPP interface is found.
+
+Type: fix
+---
+ src/plugins/linux-cp/lcp_ipsec.c | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/src/plugins/linux-cp/lcp_ipsec.c b/src/plugins/linux-cp/lcp_ipsec.c
+index 6eb69984b..e975c769f 100644
+--- a/src/plugins/linux-cp/lcp_ipsec.c
++++ b/src/plugins/linux-cp/lcp_ipsec.c
+@@ -667,6 +667,10 @@ nl_xfrm_sa_del (struct xfrmnl_sa *sa)
+   is_outb =
+     lcp_xfrm_get_sa_direction (&saddr.ip, &daddr.ip, &sw_if_index, is_ip6);
+ 
++  /* Skip SA deletion if no matching VPP interface found */
++  if (sw_if_index == ~0)
++    return;
++
+   if (IS_ROUTE_MODE_ENABLED)
+     lcp_xfrm_update_tunnel (&saddr, &daddr, is_outb, id, is_ip6, sa);
+   else if ((sw_if_index != ~0) && (is_outb == 0))
+@@ -1079,6 +1083,10 @@ nl_xfrm_sa_add (struct xfrmnl_sa *sa)
+   dir =
+     lcp_xfrm_get_sa_direction (&saddr.ip, &daddr.ip, &sw_if_index, is_ipv6);
+ 
++  /* Skip SA creation if no matching VPP interface found */
++  if (sw_if_index == ~0)
++    goto error;
++
+   if (!dir)
+     flags |= IPSEC_SA_FLAG_IS_INBOUND;
+ 
+-- 
+2.39.5
+
