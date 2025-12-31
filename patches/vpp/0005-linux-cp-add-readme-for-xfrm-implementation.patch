@@ -1,7 +1,7 @@
 From 33348f8e70e26c3fa93ca921cafef5e9af85337c Mon Sep 17 00:00:00 2001
 From: Bheemappa Agasimundin <bagasimundin@marvell.com>
 Date: Sun, 24 Mar 2024 08:36:48 +0000
-Subject: [PATCH 05/29] linux-cp: add readme for xfrm implementation
+Subject: [PATCH 05/30] linux-cp: add readme for xfrm implementation
 
 This patch adds REAMDE for XFRM changes design and startup.conf
 configuration details.
@@ -199,5 +199,5 @@ index 000000000..9e63646dd
 + nl-batch-delay-ms <>
 +}
 -- 
-2.39.5 (Apple Git-154)
+2.39.5
 
