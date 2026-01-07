@@ -1,7 +1,7 @@
 From a3e1cc07bed782b695c1376994a242798ba5c14d Mon Sep 17 00:00:00 2001
 From: zdc <taras@vyos.io>
 Date: Fri, 7 Nov 2025 21:17:20 +0200
-Subject: [PATCH 29/30] vlib: add optional systemd notify support for service
+Subject: [PATCH] vlib: add optional systemd notify support for service
  readiness
 
 Add optional systemd sd_notify() integration to signal when VPP is

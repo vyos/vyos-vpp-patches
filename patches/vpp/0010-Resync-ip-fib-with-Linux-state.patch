@@ -1,7 +1,7 @@
 From d87a33a4dd33f04dce319a1e410bc811808fb7b1 Mon Sep 17 00:00:00 2001
 From: Denys Haryachyy <garyachy@gmail.com>
 Date: Wed, 24 Jul 2024 08:35:25 +0000
-Subject: [PATCH 10/30] Resync ip fib with Linux state.
+Subject: [PATCH] Resync ip fib with Linux state.
 
 A new CLI and API file option is available:
 
