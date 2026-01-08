@@ -1,7 +1,7 @@
 From d1f8e7951245036b730c4ce9b9d40b54538d80e9 Mon Sep 17 00:00:00 2001
 From: Fullroot <51375681+AndriiFullroot@users.noreply.github.com>
 Date: Mon, 3 Nov 2025 15:06:52 +0100
-Subject: [PATCH 28/30] DET44: IPFIX support for DET44. (#28)
+Subject: [PATCH] DET44: IPFIX support for DET44. (#28)
 
 Added IPFIX nat event messages to DET44.
 
