@@ -1,4 +1,4 @@
-From 7b605e618d34710680d0c46d93c3b1824398a1f0 Mon Sep 17 00:00:00 2001
+From 60829c1f8c3d8afd8ddf526f3f67374cc7ab9e58 Mon Sep 17 00:00:00 2001
 From: Fullroot <51375681+AndriiFullroot@users.noreply.github.com>
 Date: Thu, 9 Oct 2025 16:19:38 +0200
 Subject: [PATCH] policer: Added features for unicast/multicast arc. (#29)
@@ -49,5 +49,5 @@ index 2d2252d24..37d0977bb 100644
  (vlib_main_t *vm, vlib_node_runtime_t *node, vlib_frame_t *frame)
  {
 -- 
-2.39.5
+2.51.2
 

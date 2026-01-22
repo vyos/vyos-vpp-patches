@@ -1,4 +1,4 @@
-From 99f5622c6945c0055e1a3dea4cd925bee1fecf31 Mon Sep 17 00:00:00 2001
+From 05bdfdacb6671a745221b8286c4405b6c7551f95 Mon Sep 17 00:00:00 2001
 From: zdc <taras@vyos.io>
 Date: Tue, 11 Feb 2025 20:33:46 +0200
 Subject: [PATCH] build: Fixed compatibility with build on Debian 12
@@ -9,10 +9,10 @@ Subject: [PATCH] build: Fixed compatibility with build on Debian 12
  1 file changed, 1 insertion(+)
 
 diff --git a/Makefile b/Makefile
-index 19dafb7c6..d8f1061d5 100644
+index 9c71ae9e6..9ac35eebd 100644
 --- a/Makefile
 +++ b/Makefile
-@@ -140,6 +140,7 @@ else ifeq ($(OS_ID)-$(OS_VERSION_ID),debian-11)
+@@ -148,6 +148,7 @@ else ifeq ($(OS_ID)-$(OS_VERSION_ID),debian-11)
  else ifeq ($(OS_ID)-$(OS_VERSION_ID),debian-12)
  	DEB_DEPENDS += virtualenv
  	DEB_DEPENDS += clang-14 clang-format-15
@@ -21,5 +21,5 @@ index 19dafb7c6..d8f1061d5 100644
  	# TODO: remove once ubuntu 20.04 is deprecated and extras/scripts/checkstyle.sh is upgraded to -15
  	export CLANG_FORMAT_VER=15
 -- 
-2.39.5
+2.51.2
 

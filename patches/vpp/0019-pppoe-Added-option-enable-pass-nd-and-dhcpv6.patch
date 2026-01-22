@@ -1,4 +1,4 @@
-From f8c35e9dc43b36c4469a7586675e74a922af3d58 Mon Sep 17 00:00:00 2001
+From 988ea0eaa662293e0151080dc66a47a987a48b94 Mon Sep 17 00:00:00 2001
 From: Andrii Melnychenko <a.melnychenko@vyos.io>
 Date: Thu, 10 Jul 2025 17:42:44 +0200
 Subject: [PATCH] pppoe: Added option "enable-pass-nd-and-dhcpv6"
@@ -95,5 +95,5 @@ index ec5692721..79710392d 100644
  		  vlan0 == 0 ?
  	  	    vlib_buffer_advance(b0, sizeof(*h0))
 -- 
-2.39.5
+2.51.2
 

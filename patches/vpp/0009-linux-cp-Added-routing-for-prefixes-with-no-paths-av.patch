@@ -1,4 +1,4 @@
-From a5f3779078cd93cfc821a23c681af68d1a3a39cf Mon Sep 17 00:00:00 2001
+From 13f116b182914b009a43d48d8b190c4c19858393 Mon Sep 17 00:00:00 2001
 From: zsdc <taras@vyos.io>
 Date: Tue, 23 Jul 2024 20:06:41 +0300
 Subject: [PATCH] linux-cp: Added routing for prefixes with no paths available
@@ -135,10 +135,10 @@ index 31864f791..d831d83f9 100644
  	return clib_error_return (0, "interfaces not found");
      }
 diff --git a/src/plugins/linux-cp/lcp_router.c b/src/plugins/linux-cp/lcp_router.c
-index 27f53357a..2cb99a734 100644
+index b17dcc86c..5f20f4025 100644
 --- a/src/plugins/linux-cp/lcp_router.c
 +++ b/src/plugins/linux-cp/lcp_router.c
-@@ -1166,7 +1166,7 @@ lcp_router_route_path_add_special (struct rtnl_route *rr,
+@@ -1193,7 +1193,7 @@ lcp_router_route_path_add_special (struct rtnl_route *rr,
  {
    fib_route_path_t *path;
  
@@ -147,7 +147,7 @@ index 27f53357a..2cb99a734 100644
      return;
  
    /* if it already has a path, it does not need us to add one */
-@@ -1175,8 +1175,21 @@ lcp_router_route_path_add_special (struct rtnl_route *rr,
+@@ -1202,8 +1202,21 @@ lcp_router_route_path_add_special (struct rtnl_route *rr,
  
    vec_add2 (ctx->paths, path, 1);
  
@@ -171,7 +171,7 @@ index 27f53357a..2cb99a734 100644
    path->frp_proto = fib_proto_to_dpo (ctx->route_proto);
    path->frp_preference = ctx->preference;
  
-@@ -1334,7 +1347,7 @@ lcp_router_route_add (struct rtnl_route *rr, int is_replace)
+@@ -1361,7 +1374,7 @@ lcp_router_route_add (struct rtnl_route *rr, int is_replace)
  
    nlt = lcp_router_table_add_or_lock (table_id, pfx.fp_proto);
    /* Skip any kernel routes and IPv6 LL or multicast routes */
@@ -181,5 +181,5 @@ index 27f53357a..2cb99a734 100644
         (ip6_address_is_multicast (&pfx.fp_addr.ip6) ||
  	ip6_address_is_link_local_unicast (&pfx.fp_addr.ip6))))
 -- 
-2.39.5
+2.51.2
 

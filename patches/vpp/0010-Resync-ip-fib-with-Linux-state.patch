@@ -1,4 +1,4 @@
-From d87a33a4dd33f04dce319a1e410bc811808fb7b1 Mon Sep 17 00:00:00 2001
+From ad8743715ddefe93f9a5d2b4e14d45efc1a0498d Mon Sep 17 00:00:00 2001
 From: Denys Haryachyy <garyachy@gmail.com>
 Date: Wed, 24 Jul 2024 08:35:25 +0000
 Subject: [PATCH] Resync ip fib with Linux state.
@@ -140,7 +140,7 @@ index 8cf6d3f4d..6b44d3d25 100644
   * Retreive the pair in the DP
   */
 diff --git a/src/plugins/linux-cp/lcp_nl.c b/src/plugins/linux-cp/lcp_nl.c
-index 55d2ea542..5ac6ae273 100644
+index 95e1adc35..4421311ee 100644
 --- a/src/plugins/linux-cp/lcp_nl.c
 +++ b/src/plugins/linux-cp/lcp_nl.c
 @@ -43,6 +43,7 @@ typedef enum nl_status_t_
@@ -197,5 +197,5 @@ index 55d2ea542..5ac6ae273 100644
  	   * reduce the number of failed attempts that stall the main thread by
  	   * waiting out the notification storm
 -- 
-2.39.5
+2.51.2
 

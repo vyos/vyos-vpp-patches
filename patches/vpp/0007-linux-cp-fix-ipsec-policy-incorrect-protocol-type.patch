@@ -1,4 +1,4 @@
-From e5d9989fe860fd394d131c791c3e74bd8952c230 Mon Sep 17 00:00:00 2001
+From 037b12a331cfdb1bb84882c138cfa4144630b6c3 Mon Sep 17 00:00:00 2001
 From: Bheemappa Agasimundin <bagasimundin@marvell.com>
 Date: Tue, 1 Oct 2024 15:06:41 +0000
 Subject: [PATCH] linux-cp: fix ipsec policy incorrect protocol type
@@ -51,5 +51,5 @@ index c847e699f..ff6e79649 100644
  
    lcp_xfrm_mk_ipaddr (sel_dst, &sel_daddr);
 -- 
-2.39.5
+2.51.2
 

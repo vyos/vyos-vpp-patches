@@ -1,4 +1,4 @@
-From 0a6768dea23e4bf4621dac89b166b869f54cc53f Mon Sep 17 00:00:00 2001
+From f4b525e43e085bb06fcb82a369c6eaee9085830b Mon Sep 17 00:00:00 2001
 From: Kommula Shiva Shankar <kshankar@marvell.com>
 Date: Wed, 7 Feb 2024 11:58:17 +0530
 Subject: [PATCH] linux-cp: initialize sw_if_index variable
@@ -28,5 +28,5 @@ index 79194c226..fe83a948a 100644
    u8 *s = NULL;
    u8 instance = xfrmnl_sa_get_reqid (sa);
 -- 
-2.39.5
+2.51.2
 

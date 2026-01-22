@@ -1,4 +1,4 @@
-From 56275b6a0dbe20b8eb77a16b6525a34ab71b33ca Mon Sep 17 00:00:00 2001
+From d1e5a33fccb599ebcfb7fba73e53fa87ea73083c Mon Sep 17 00:00:00 2001
 From: zdc <taras@vyos.io>
 Date: Wed, 12 Feb 2025 12:29:57 +0200
 Subject: [PATCH] linux-cp: Added build dependency for XFRM
@@ -12,10 +12,10 @@ Added `libnl-xfrm-3-200` to build dependencies to make build
  1 file changed, 1 insertion(+)
 
 diff --git a/Makefile b/Makefile
-index 3cdaf2778..19dafb7c6 100644
+index 593ea4e98..9c71ae9e6 100644
 --- a/Makefile
 +++ b/Makefile
-@@ -108,6 +108,7 @@ DEB_DEPENDS += tshark
+@@ -116,6 +116,7 @@ DEB_DEPENDS += tshark
  DEB_DEPENDS += jq # for extracting test summary from .json report (hs-test)
  DEB_DEPENDS += libiberty-dev
  DEB_DEPENDS += nasm libnuma-dev # for make-ext-deps
@@ -24,5 +24,5 @@ index 3cdaf2778..19dafb7c6 100644
  LIBFFI=libffi6 # works on all but 20.04 and debian-testing
  ifeq ($(OS_VERSION_ID),24.04)
 -- 
-2.39.5
+2.51.2
 

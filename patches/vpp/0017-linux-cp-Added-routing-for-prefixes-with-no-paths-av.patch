@@ -1,4 +1,4 @@
-From 76436e797f22e2e3160d044bdd18ff83154fec3e Mon Sep 17 00:00:00 2001
+From ce28e33a54c0b03f5f14365136c535e4c6ffd0fd Mon Sep 17 00:00:00 2001
 From: zsdc <taras@vyos.io>
 Date: Tue, 23 Jul 2024 20:06:41 +0300
 Subject: [PATCH] linux-cp: Added routing for prefixes with no paths available
@@ -159,10 +159,10 @@ index 31864f791..d831d83f9 100644
  	return clib_error_return (0, "interfaces not found");
      }
 diff --git a/src/plugins/linux-cp/lcp_router.c b/src/plugins/linux-cp/lcp_router.c
-index 27f53357a..490b9fc23 100644
+index b17dcc86c..686ab64ae 100644
 --- a/src/plugins/linux-cp/lcp_router.c
 +++ b/src/plugins/linux-cp/lcp_router.c
-@@ -1156,6 +1156,42 @@ lcp_router_route_path_parse (struct rtnl_nexthop *rnh, void *arg)
+@@ -1183,6 +1183,42 @@ lcp_router_route_path_parse (struct rtnl_nexthop *rnh, void *arg)
      }
  }
  
@@ -205,7 +205,7 @@ index 27f53357a..490b9fc23 100644
  /*
   * blackhole, unreachable, prohibit will not have a next hop in an
   * RTM_NEWROUTE. Add a path for them.
-@@ -1166,7 +1202,7 @@ lcp_router_route_path_add_special (struct rtnl_route *rr,
+@@ -1193,7 +1229,7 @@ lcp_router_route_path_add_special (struct rtnl_route *rr,
  {
    fib_route_path_t *path;
  
@@ -214,7 +214,7 @@ index 27f53357a..490b9fc23 100644
      return;
  
    /* if it already has a path, it does not need us to add one */
-@@ -1175,8 +1211,21 @@ lcp_router_route_path_add_special (struct rtnl_route *rr,
+@@ -1202,8 +1238,21 @@ lcp_router_route_path_add_special (struct rtnl_route *rr,
  
    vec_add2 (ctx->paths, path, 1);
  
@@ -238,7 +238,7 @@ index 27f53357a..490b9fc23 100644
    path->frp_proto = fib_proto_to_dpo (ctx->route_proto);
    path->frp_preference = ctx->preference;
  
-@@ -1263,7 +1312,17 @@ lcp_router_route_del (struct rtnl_route *rr)
+@@ -1290,7 +1339,17 @@ lcp_router_route_del (struct rtnl_route *rr)
    };
  
    rtnl_route_foreach_nexthop (rr, lcp_router_route_path_parse, &np);
@@ -257,7 +257,7 @@ index 27f53357a..490b9fc23 100644
  
    if (0 != vec_len (np.paths))
      {
-@@ -1333,17 +1392,7 @@ lcp_router_route_add (struct rtnl_route *rr, int is_replace)
+@@ -1360,17 +1419,7 @@ lcp_router_route_add (struct rtnl_route *rr, int is_replace)
    entry_flags = lcp_router_route_mk_entry_flags (rtype, table_id, rproto);
  
    nlt = lcp_router_table_add_or_lock (table_id, pfx.fp_proto);
@@ -276,7 +276,7 @@ index 27f53357a..490b9fc23 100644
    LCP_ROUTER_DBG ("route %s: %d:%U %U", is_replace ? "replace" : "add",
  		  rtnl_route_get_table (rr), format_fib_prefix, &pfx,
  		  format_fib_entry_flags, entry_flags);
-@@ -1356,7 +1405,34 @@ lcp_router_route_add (struct rtnl_route *rr, int is_replace)
+@@ -1383,7 +1432,34 @@ lcp_router_route_add (struct rtnl_route *rr, int is_replace)
    };
  
    rtnl_route_foreach_nexthop (rr, lcp_router_route_path_parse, &np);
@@ -338,10 +338,10 @@ index a3116bb93..be1a9a822 100644
  }
  
 diff --git a/src/vnet/ip/ip4_forward.c b/src/vnet/ip/ip4_forward.c
-index cabefd812..3f8b4aed3 100644
+index fb96159b4..99bf9650a 100644
 --- a/src/vnet/ip/ip4_forward.c
 +++ b/src/vnet/ip/ip4_forward.c
-@@ -1521,6 +1521,16 @@ ip4_local_check_src (vlib_buffer_t *b, ip4_header_t *ip0,
+@@ -1522,6 +1522,16 @@ ip4_local_check_src (vlib_buffer_t *b, ip4_header_t *ip0,
      vnet_buffer (b)->sw_if_index[VLIB_TX] != ~0 ?
      vnet_buffer (b)->sw_if_index[VLIB_TX] : vnet_buffer (b)->ip.fib_index;
  
@@ -359,5 +359,5 @@ index cabefd812..3f8b4aed3 100644
    if (is_receive_dpo)
      {
 -- 
-2.39.5
+2.51.2
 
