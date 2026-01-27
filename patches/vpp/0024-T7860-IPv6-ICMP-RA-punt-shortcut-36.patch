@@ -1,0 +1,415 @@
+From c7920cf9cb11a5036227db54a8c92b3b168874f5 Mon Sep 17 00:00:00 2001
+From: Fullroot <51375681+AndriiFullroot@users.noreply.github.com>
+Date: Thu, 22 Jan 2026 16:37:26 +0100
+Subject: [PATCH] T7860: IPv6 ICMP RA punt shortcut (#36)
+
+* T7860: Added "ip6-icmp-ra-punt" node
+
+Added a node that allows steering ICMPv6 RA packets straight to PUNT.
+This allows us to initialize DHCPv6 on the tap device in LCP interfaces.
+The issue is that without proper configuration on the DPDK interface,
+The packets from the router behind DPDK would be filtered in
+"icmp6-router-advertisement" node.
+The "ip6-icmp-ra-punt" node is similar to "ip4-dhcp-client-detect"
+that allows passing DHCP packets straight to ip4-udp-input.
+
+Change-Id: I93b5a5f7e567d9e53a182cbbd20511d496ff8a91
+Signed-off-by: Andrii Melnychenko <a.melnychenko@vyos.io>
+
+* T7860: Refactored according to the review
+
+Added ip6_locate_header calls instead of the offset that assumes
+that the ICMP header is right after IPv6.
+
+Change-Id: Ied44cb43c3254ca5f08f8bbe08f4b2e798bed3e5
+Signed-off-by: Andrii Melnychenko <a.melnychenko@vyos.io>
+
+---------
+
+Signed-off-by: Andrii Melnychenko <a.melnychenko@vyos.io>
+(cherry picked from commit e4993141413b203f17131ea9b80f9bf1449c8411)
+---
+ src/plugins/dhcp/CMakeLists.txt     |   2 +
+ src/plugins/dhcp/ip6_icmp_ra_punt.c | 326 ++++++++++++++++++++++++++++
+ src/plugins/pppoe/pppoe_cp.c        |   2 +-
+ src/vlib/CMakeLists.txt             |   2 +-
+ 4 files changed, 330 insertions(+), 2 deletions(-)
+ create mode 100644 src/plugins/dhcp/ip6_icmp_ra_punt.c
+
+diff --git a/src/plugins/dhcp/CMakeLists.txt b/src/plugins/dhcp/CMakeLists.txt
+index 9db38e391..2d08e63a2 100644
+--- a/src/plugins/dhcp/CMakeLists.txt
++++ b/src/plugins/dhcp/CMakeLists.txt
+@@ -27,9 +27,11 @@ add_vpp_plugin(dhcp
+   dhcp6_pd_client_cp_api.c
+   dhcp6_pd_client_dp.c
+   dhcp6_proxy_node.c
++  ip6_icmp_ra_punt.c
+ 
+   MULTIARCH_SOURCES
+   dhcp_client_detect.c
++  ip6_icmp_ra_punt.c
+ 
+   API_FILES
+   dhcp.api
+diff --git a/src/plugins/dhcp/ip6_icmp_ra_punt.c b/src/plugins/dhcp/ip6_icmp_ra_punt.c
+new file mode 100644
+index 000000000..157c7859b
+--- /dev/null
++++ b/src/plugins/dhcp/ip6_icmp_ra_punt.c
+@@ -0,0 +1,326 @@
++/* SPDX-License-Identifier: GPL-2.0-or-later */
++/*
++ * Copyright (c) 2025 by VyOS Networks
++ * Andrii Melnychenko a.melnychenko@vyos.io
++ */
++
++/*
++ * Mostly based on ip4-dhcp-client-detect feature.
++ * The idea is to allow ICMPv6 RA packets to pass through stack
++ * and end up in tap interface in the LCP pair(e.g., with dpdk-tap)
++ * For that, the ICMPv6 RA packet was passed to the PUNT for a shortcut
++ * and bypass checks in the icmp6-router-advertisement node.
++ */
++
++#include <vnet/ip/ip.h>
++#include <vnet/ip/ip6_inlines.h>
++
++#define foreach_icmp6_ra \
++  _(PUNT, "Punt")
++
++typedef enum
++{
++#define _(sym,str) IP6_ICMP_RA_ERROR_##sym,
++  foreach_icmp6_ra
++#undef _
++    IP6_ICMP_RA_N_ERROR,
++} ip6_icmp_ra_punt_error_t;
++
++static char *icmp6_ra_shortcut_error_strings[] = {
++#define _(sym,string) string,
++  foreach_icmp6_ra
++#undef _
++};
++
++typedef enum
++{
++#define _(sym,str) IP6_ICMP_RA_NEXT_##sym,
++  foreach_icmp6_ra
++#undef _
++    IP6_ICMP_RA_N_NEXT,
++} ip6_icmp_ra_punt_next_t;
++
++/**
++ * per-packet trace data
++ */
++typedef struct ip6_icmp_ra_punt_trace_t_
++{
++  /* per-pkt trace data */
++  u8 extracted;
++} ip6_icmp_ra_punt_trace_t;
++
++VLIB_NODE_FN (ip6_icmp_ra_punt_node) (vlib_main_t * vm,
++					vlib_node_runtime_t * node,
++					vlib_frame_t * frame)
++{
++  ip6_icmp_ra_punt_next_t next_index;
++  u32 n_left_from, *from, *to_next;
++  u32 extractions;
++
++  next_index = node->cached_next_index;
++  extractions = 0;
++  n_left_from = frame->n_vectors;
++  from = vlib_frame_vector_args (frame);
++
++  while (n_left_from > 0)
++    {
++      u32 n_left_to_next;
++
++      vlib_get_next_frame (vm, node, next_index, to_next, n_left_to_next);
++
++      while (n_left_from >= 8 && n_left_to_next >= 4)
++	{
++	  icmp46_header_t *icmp0, *icmp1, *icmp2, *icmp3;
++	  ip6_header_t *ip0, *ip1, *ip2, *ip3;
++	  vlib_buffer_t *b0, *b1, *b2, *b3;
++	  u32 next0, next1, next2, next3;
++	  u32 bi0, bi1, bi2, bi3;
++	  u32 offset0, offset1, offset2, offset3;
++
++	  next0 = next1 = next2 = next3 = ~0;
++	  bi0 = to_next[0] = from[0];
++	  bi1 = to_next[1] = from[1];
++	  bi2 = to_next[2] = from[2];
++	  bi3 = to_next[3] = from[3];
++
++	  /* Prefetch next iteration. */
++	  {
++	    vlib_buffer_t *p2, *p3, *p4, *p5;
++
++	    p2 = vlib_get_buffer (vm, from[2]);
++	    p3 = vlib_get_buffer (vm, from[3]);
++	    p4 = vlib_get_buffer (vm, from[4]);
++	    p5 = vlib_get_buffer (vm, from[5]);
++
++	    vlib_prefetch_buffer_header (p2, LOAD);
++	    vlib_prefetch_buffer_header (p3, LOAD);
++	    vlib_prefetch_buffer_header (p4, LOAD);
++	    vlib_prefetch_buffer_header (p5, LOAD);
++
++	    CLIB_PREFETCH (p2->data, sizeof (ip0[0]) + sizeof (icmp0[0]),
++			   LOAD);
++	    CLIB_PREFETCH (p3->data, sizeof (ip0[0]) + sizeof (icmp0[0]),
++			   LOAD);
++	    CLIB_PREFETCH (p4->data, sizeof (ip0[0]) + sizeof (icmp0[0]),
++			   LOAD);
++	    CLIB_PREFETCH (p5->data, sizeof (ip0[0]) + sizeof (icmp0[0]),
++			   LOAD);
++	  }
++
++	  from += 4;
++	  to_next += 4;
++	  n_left_from -= 4;
++	  n_left_to_next -= 4;
++
++	  b0 = vlib_get_buffer (vm, bi0);
++	  b1 = vlib_get_buffer (vm, bi1);
++	  b2 = vlib_get_buffer (vm, bi2);
++	  b3 = vlib_get_buffer (vm, bi3);
++	  ip0 = vlib_buffer_get_current (b0);
++	  ip1 = vlib_buffer_get_current (b1);
++	  ip2 = vlib_buffer_get_current (b2);
++	  ip3 = vlib_buffer_get_current (b3);
++
++	  /* get "default" next */
++	  vnet_feature_next (&next0, b0);
++	  vnet_feature_next (&next1, b1);
++	  vnet_feature_next (&next2, b2);
++	  vnet_feature_next (&next3, b3);
++	  offset0 = 0;
++	  offset1 = 0;
++	  offset2 = 0;
++	  offset3 = 0;
++
++	  if (ip6_locate_header(b0, ip0, IP_PROTOCOL_ICMP6, &offset0) == IP_PROTOCOL_ICMP6)
++	    {
++	      icmp0 = (icmp46_header_t *) ((u8 *)ip0 + offset0);
++
++	      if (PREDICT_TRUE (icmp0->type == ICMP6_router_advertisement) &&
++			PREDICT_TRUE (icmp0->code == 0) &&
++			PREDICT_TRUE (ip0->hop_limit == 255) &&
++			PREDICT_TRUE (ip6_address_is_link_local_unicast (&ip0->src_address)))
++		{
++		  next0 = IP6_ICMP_RA_NEXT_PUNT;
++		  extractions++;
++		}
++	    }
++	  if (ip6_locate_header(b1, ip1, IP_PROTOCOL_ICMP6, &offset1) == IP_PROTOCOL_ICMP6)
++	    {
++	      icmp1 = (icmp46_header_t *) ((u8 *)ip1 + offset1);
++
++	      if (PREDICT_TRUE (icmp1->type == ICMP6_router_advertisement) &&
++			PREDICT_TRUE (icmp1->code == 0) &&
++			PREDICT_TRUE (ip1->hop_limit == 255) &&
++			PREDICT_TRUE (ip6_address_is_link_local_unicast (&ip1->src_address)))
++		{
++		  next1 = IP6_ICMP_RA_NEXT_PUNT;
++		  extractions++;
++		}
++	    }
++	  if (ip6_locate_header(b2, ip2, IP_PROTOCOL_ICMP6, &offset2) == IP_PROTOCOL_ICMP6)
++	    {
++	      icmp2 = (icmp46_header_t *) ((u8 *)ip2 + offset2);
++
++	      if (PREDICT_TRUE (icmp2->type == ICMP6_router_advertisement) &&
++			PREDICT_TRUE (icmp2->code == 0) &&
++			PREDICT_TRUE (ip2->hop_limit == 255) &&
++			PREDICT_TRUE (ip6_address_is_link_local_unicast (&ip2->src_address)))
++		{
++		  next2 = IP6_ICMP_RA_NEXT_PUNT;
++		  extractions++;
++		}
++	    }
++	  if (ip6_locate_header(b3, ip3, IP_PROTOCOL_ICMP6, &offset3) == IP_PROTOCOL_ICMP6)
++	    {
++	      icmp3 = (icmp46_header_t *) ((u8 *)ip3 + offset3);
++
++	      if (PREDICT_TRUE (icmp3->type == ICMP6_router_advertisement) &&
++			PREDICT_TRUE (icmp3->code == 0) &&
++			PREDICT_TRUE (ip3->hop_limit == 255) &&
++			PREDICT_TRUE (ip6_address_is_link_local_unicast (&ip3->src_address)))
++		{
++		  next3 = IP6_ICMP_RA_NEXT_PUNT;
++		  extractions++;
++		}
++	    }
++
++	  if (PREDICT_FALSE (b0->flags & VLIB_BUFFER_IS_TRACED))
++	    {
++	      ip6_icmp_ra_punt_trace_t *t =
++		vlib_add_trace (vm, node, b0, sizeof (*t));
++	      t->extracted = (next0 == IP6_ICMP_RA_NEXT_PUNT);
++	    }
++	  if (PREDICT_FALSE (b1->flags & VLIB_BUFFER_IS_TRACED))
++	    {
++	      ip6_icmp_ra_punt_trace_t *t =
++		vlib_add_trace (vm, node, b1, sizeof (*t));
++	      t->extracted = (next1 == IP6_ICMP_RA_NEXT_PUNT);
++	    }
++	  if (PREDICT_FALSE (b2->flags & VLIB_BUFFER_IS_TRACED))
++	    {
++	      ip6_icmp_ra_punt_trace_t *t =
++		vlib_add_trace (vm, node, b2, sizeof (*t));
++	      t->extracted = (next2 == IP6_ICMP_RA_NEXT_PUNT);
++	    }
++	  if (PREDICT_FALSE (b3->flags & VLIB_BUFFER_IS_TRACED))
++	    {
++	      ip6_icmp_ra_punt_trace_t *t =
++		vlib_add_trace (vm, node, b3, sizeof (*t));
++	      t->extracted = (next3 == IP6_ICMP_RA_NEXT_PUNT);
++	    }
++
++	  /* verify speculative enqueue, maybe switch current next frame */
++	  vlib_validate_buffer_enqueue_x4 (vm, node, next_index,
++					   to_next, n_left_to_next,
++					   bi0, bi1, bi2, bi3,
++					   next0, next1, next2, next3);
++	}
++
++      while (n_left_from > 0 && n_left_to_next > 0)
++	{
++	  icmp46_header_t *icmp0;
++	  vlib_buffer_t *b0;
++	  ip6_header_t *ip0;
++	  u32 next0 = ~0;
++	  u32 bi0;
++	  u32 offset;
++
++	  bi0 = from[0];
++	  to_next[0] = bi0;
++	  from += 1;
++	  to_next += 1;
++	  n_left_from -= 1;
++	  n_left_to_next -= 1;
++
++	  b0 = vlib_get_buffer (vm, bi0);
++	  ip0 = vlib_buffer_get_current (b0);
++
++	  /* get "default" next */
++	  vnet_feature_next (&next0, b0);
++	  offset = 0;
++
++	  if (ip6_locate_header(b0, ip0, IP_PROTOCOL_ICMP6, &offset) == IP_PROTOCOL_ICMP6)
++	    {
++	      icmp0 = (icmp46_header_t *) ((u8 *)ip0 + offset);
++
++	      if (PREDICT_TRUE (icmp0->type == ICMP6_router_advertisement) &&
++			PREDICT_TRUE (icmp0->code == 0) &&
++			PREDICT_TRUE (ip0->hop_limit == 255) &&
++			PREDICT_TRUE (ip6_address_is_link_local_unicast (&ip0->src_address)))
++		{
++		  next0 = IP6_ICMP_RA_NEXT_PUNT;
++		  extractions++;
++		}
++	    }
++
++	  if (PREDICT_FALSE (b0->flags & VLIB_BUFFER_IS_TRACED))
++	    {
++	      ip6_icmp_ra_punt_trace_t *t =
++		vlib_add_trace (vm, node, b0, sizeof (*t));
++	      t->extracted = (next0 == IP6_ICMP_RA_NEXT_PUNT);
++	    }
++
++	  vlib_validate_buffer_enqueue_x1 (vm, node, next_index,
++					   to_next, n_left_to_next,
++					   bi0, next0);
++	}
++
++      vlib_put_next_frame (vm, node, next_index, n_left_to_next);
++    }
++
++  vlib_node_increment_counter (vm, node->node_index,
++			       IP6_ICMP_RA_ERROR_PUNT, extractions);
++
++  return frame->n_vectors;
++}
++
++static u8 *
++format_ip6_icmp_ra_punt_trace (u8 * s, va_list * args)
++{
++  CLIB_UNUSED (vlib_main_t * vm) = va_arg (*args, vlib_main_t *);
++  CLIB_UNUSED (vlib_node_t * node) = va_arg (*args, vlib_node_t *);
++  ip6_icmp_ra_punt_trace_t *t =
++    va_arg (*args, ip6_icmp_ra_punt_trace_t *);
++
++  s = format (s, "ip6-icmp-ra-punt: shortcut to punt taken - %s", (t->extracted ? "yes" : "no"));
++
++  return s;
++}
++
++VLIB_REGISTER_NODE (ip6_icmp_ra_punt_node) = {
++  .name = "ip6-icmp-ra-punt",
++  .vector_size = sizeof (u32),
++  .format_trace = format_ip6_icmp_ra_punt_trace,
++  .type = VLIB_NODE_TYPE_INTERNAL,
++
++  .n_errors = ARRAY_LEN(icmp6_ra_shortcut_error_strings),
++  .error_strings = icmp6_ra_shortcut_error_strings,
++
++  .n_next_nodes = IP6_ICMP_RA_N_NEXT,
++  .next_nodes = {
++    [IP6_ICMP_RA_NEXT_PUNT] = "ip6-punt",
++  },
++};
++
++VNET_FEATURE_INIT (ip6_icmp_ra_punt_feat_ucast_node, static) =
++{
++  .arc_name = "ip6-unicast",
++  .node_name = "ip6-icmp-ra-punt",
++  .runs_before = VNET_FEATURES ("ip6-not-enabled"),
++};
++
++VNET_FEATURE_INIT (ip6_icmp_ra_punt_feat_mcast_node, static) =
++{
++  .arc_name = "ip6-multicast",
++  .node_name = "ip6-icmp-ra-punt",
++  .runs_before = VNET_FEATURES ("ip6-not-enabled"),
++};
++
++
++/*
++ * fd.io coding-style-patch-verification: ON
++ *
++ * Local Variables:
++ * eval: (c-set-style "gnu")
++ * End:
++ */
+diff --git a/src/plugins/pppoe/pppoe_cp.c b/src/plugins/pppoe/pppoe_cp.c
+index 1a4b89960..c5b682243 100644
+--- a/src/plugins/pppoe/pppoe_cp.c
++++ b/src/plugins/pppoe/pppoe_cp.c
+@@ -160,7 +160,7 @@ pppoe_show_cp_command_fn (vlib_main_t * vm,
+       vlib_cli_output (vm, "No PPPoE control plane interface configured.");
+       return 0;
+     }
+-  
++ 
+   vlib_cli_output (vm, "%-20s%-20s", "Dataplane Interface", "Control Interface");
+   vlib_cli_output (vm, "%-20s%-20s", "-------------------", "-----------------");
+ 
+diff --git a/src/vlib/CMakeLists.txt b/src/vlib/CMakeLists.txt
+index 5f0e87c48..61fd23894 100644
+--- a/src/vlib/CMakeLists.txt
++++ b/src/vlib/CMakeLists.txt
+@@ -27,7 +27,7 @@ if(VPP_ENABLE_SYSTEMD_NOTIFY)
+   # Check for systemd library
+   vpp_find_path(SYSTEMD_INCLUDE_DIR systemd/sd-daemon.h)
+   vpp_find_library(SYSTEMD_LIB NAMES systemd)
+-  
++ 
+   if(SYSTEMD_INCLUDE_DIR AND SYSTEMD_LIB)
+     message(STATUS "systemd found at ${SYSTEMD_LIB}")
+     set(SYSTEMD_NOTIFY_ENABLED 1 CACHE STRING "systemd notify enabled")
+-- 
+2.51.2
+

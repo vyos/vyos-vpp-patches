@@ -1,4 +1,4 @@
-From 60829c1f8c3d8afd8ddf526f3f67374cc7ab9e58 Mon Sep 17 00:00:00 2001
+From 22964e08de71cd5c9d1d6e7a6f276c1f7dc4e351 Mon Sep 17 00:00:00 2001
 From: Fullroot <51375681+AndriiFullroot@users.noreply.github.com>
 Date: Thu, 9 Oct 2025 16:19:38 +0200
 Subject: [PATCH] policer: Added features for unicast/multicast arc. (#29)

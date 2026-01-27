@@ -1,4 +1,4 @@
-From 0a6813e983d6c3f14e3994755745ef44b83f14a1 Mon Sep 17 00:00:00 2001
+From a959be6e7c9718ded939db70ff411219976db606 Mon Sep 17 00:00:00 2001
 From: zdc <taras@vyos.io>
 Date: Fri, 1 Aug 2025 17:16:28 +0300
 Subject: [PATCH] vyos: linux-cp: xfrm: Updated XFRM features for compatibility

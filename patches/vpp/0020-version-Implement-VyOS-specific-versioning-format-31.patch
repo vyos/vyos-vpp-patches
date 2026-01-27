@@ -1,4 +1,4 @@
-From f5651e4120afc6ab73f5bd9e7afd4da5b141df59 Mon Sep 17 00:00:00 2001
+From 222ed30387fb9519653070a1cf39ed4b923df923 Mon Sep 17 00:00:00 2001
 From: zdc <zdc@users.noreply.github.com>
 Date: Fri, 31 Oct 2025 16:47:41 +0200
 Subject: [PATCH] version: Implement VyOS-specific versioning format (#31)

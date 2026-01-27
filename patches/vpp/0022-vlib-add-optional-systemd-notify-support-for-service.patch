@@ -1,4 +1,4 @@
-From 3ce66d5ae16fb26d0e298a16e44211afe5d6d7a0 Mon Sep 17 00:00:00 2001
+From decb90b7594c6fc5f7b58154a97dd1573efd8a68 Mon Sep 17 00:00:00 2001
 From: zdc <taras@vyos.io>
 Date: Fri, 7 Nov 2025 21:17:20 +0200
 Subject: [PATCH] vlib: add optional systemd notify support for service

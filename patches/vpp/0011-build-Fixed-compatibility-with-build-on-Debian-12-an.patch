@@ -1,0 +1,34 @@
+From 94582c81383e5511192ad8cfb534467f7a104175 Mon Sep 17 00:00:00 2001
+From: zdc <taras@vyos.io>
+Date: Tue, 11 Feb 2025 20:33:46 +0200
+Subject: [PATCH] build: Fixed compatibility with build on Debian 12 and XFRM
+ deps - Add llvm on Debian 12 - Add libunwind8 for linux-cp XFRM extension
+
+(cherry picked from commit ca7d5bcd381edb68e9d4ae6ffa915bda4d2c1adf)
+---
+ Makefile | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/Makefile b/Makefile
+index 9c71ae9e6..fe0b497cd 100644
+--- a/Makefile
++++ b/Makefile
+@@ -117,6 +117,7 @@ DEB_DEPENDS += jq # for extracting test summary from .json report (hs-test)
+ DEB_DEPENDS += libiberty-dev
+ DEB_DEPENDS += nasm libnuma-dev # for make-ext-deps
+ DEB_DEPENDS += libnl-xfrm-3-200 # for linux-cp XFRM extension
++DEB_DEPENDS += libunwind8 # for linux-cp XFRM extension
+ 
+ LIBFFI=libffi6 # works on all but 20.04 and debian-testing
+ ifeq ($(OS_VERSION_ID),24.04)
+@@ -148,6 +149,7 @@ else ifeq ($(OS_ID)-$(OS_VERSION_ID),debian-11)
+ else ifeq ($(OS_ID)-$(OS_VERSION_ID),debian-12)
+ 	DEB_DEPENDS += virtualenv
+ 	DEB_DEPENDS += clang-14 clang-format-15
++        DEB_DEPENDS += llvm
+ 	# for extras/scripts/checkstyle.sh
+ 	# TODO: remove once ubuntu 20.04 is deprecated and extras/scripts/checkstyle.sh is upgraded to -15
+ 	export CLANG_FORMAT_VER=15
+-- 
+2.51.2
+

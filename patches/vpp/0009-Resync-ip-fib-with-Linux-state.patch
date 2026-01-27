@@ -1,4 +1,4 @@
-From ad8743715ddefe93f9a5d2b4e14d45efc1a0498d Mon Sep 17 00:00:00 2001
+From 176e9de5869e19478016cf18d0575668aac3e23c Mon Sep 17 00:00:00 2001
 From: Denys Haryachyy <garyachy@gmail.com>
 Date: Wed, 24 Jul 2024 08:35:25 +0000
 Subject: [PATCH] Resync ip fib with Linux state.
@@ -76,10 +76,10 @@ index 0db502988..ffcd4d416 100644
   * Set up the API message handling tables
   */
 diff --git a/src/plugins/linux-cp/lcp_cli.c b/src/plugins/linux-cp/lcp_cli.c
-index d10557766..000d6c20d 100644
+index e89afd2a7..92ca0d0a9 100644
 --- a/src/plugins/linux-cp/lcp_cli.c
 +++ b/src/plugins/linux-cp/lcp_cli.c
-@@ -405,6 +405,21 @@ VLIB_CLI_COMMAND (lcp_ethertype_show_command, static) = {
+@@ -393,6 +393,21 @@ VLIB_CLI_COMMAND (lcp_ethertype_show_command, static) = {
    .function = lcp_ethertype_show_cmd,
  };
  
@@ -102,10 +102,10 @@ index d10557766..000d6c20d 100644
  lcp_cli_init (vlib_main_t *vm)
  {
 diff --git a/src/plugins/linux-cp/lcp_interface.c b/src/plugins/linux-cp/lcp_interface.c
-index d831d83f9..d4547c81c 100644
+index 31864f791..cd9725c87 100644
 --- a/src/plugins/linux-cp/lcp_interface.c
 +++ b/src/plugins/linux-cp/lcp_interface.c
-@@ -1198,6 +1198,17 @@ lcp_itf_pair_replace_end (void)
+@@ -1194,6 +1194,17 @@ lcp_itf_pair_replace_end (void)
    return (0);
  }
  
