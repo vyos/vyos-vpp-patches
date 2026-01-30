@@ -1,4 +1,4 @@
-From d1f8e7951245036b730c4ce9b9d40b54538d80e9 Mon Sep 17 00:00:00 2001
+From 66199bea9f4286b30af9e8f123d3d34a07104098 Mon Sep 17 00:00:00 2001
 From: Fullroot <51375681+AndriiFullroot@users.noreply.github.com>
 Date: Mon, 3 Nov 2025 15:06:52 +0100
 Subject: [PATCH] DET44: IPFIX support for DET44. (#28)
@@ -29,10 +29,10 @@ index f251bc9c6..22227ca30 100644
  	    }
  	}
 diff --git a/src/plugins/nat/det44/det44.h b/src/plugins/nat/det44/det44.h
-index 683f554f0..edd202f27 100644
+index ae5763111..8643ae182 100644
 --- a/src/plugins/nat/det44/det44.h
 +++ b/src/plugins/nat/det44/det44.h
-@@ -407,10 +407,39 @@ snat_det_ses_create (u32 thread_index, snat_det_map_t * dm,
+@@ -401,10 +401,39 @@ snat_det_ses_create (u32 thread_index, snat_det_map_t * dm,
  }
  
  static_always_inline void
@@ -239,5 +239,5 @@ index dd89606ff..04e9fbdbc 100644
  	  sum0 = tcp0->checksum;
  	  sum0 = ip_csum_update (sum0, old_addr0.as_u32, new_addr0.as_u32,
 -- 
-2.39.5
+2.51.2
 

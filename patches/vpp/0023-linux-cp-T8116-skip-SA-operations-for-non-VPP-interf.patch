@@ -1,4 +1,4 @@
-From 4190c30981fd5ef9b0f50a116d2cb710c50ca33d Mon Sep 17 00:00:00 2001
+From fbc87bce7be702928447353168f9933b1f9b0d67 Mon Sep 17 00:00:00 2001
 From: Denys Haryachyy <garyachy@users.noreply.github.com>
 Date: Tue, 30 Dec 2025 17:34:10 +0200
 Subject: [PATCH] linux-cp: T8116: skip SA operations for non-VPP interface
@@ -47,5 +47,5 @@ index 6eb69984b..e975c769f 100644
      flags |= IPSEC_SA_FLAG_IS_INBOUND;
  
 -- 
-2.39.5
+2.51.2
 

@@ -1,4 +1,4 @@
-From 759521ff07dcfb69a09d432e943319a8422ee47c Mon Sep 17 00:00:00 2001
+From 85c01c5c9ee97bd2091065e280c5dcf51788b200 Mon Sep 17 00:00:00 2001
 From: Denys Haryachyy <garyachy@gmail.com>
 Date: Wed, 29 Jan 2025 11:57:01 +0200
 Subject: [PATCH] LCP: Improved lcp resync CLI and API to wait until Netlink
@@ -85,10 +85,10 @@ index ffcd4d416..0db502988 100644
   * Set up the API message handling tables
   */
 diff --git a/src/plugins/linux-cp/lcp_cli.c b/src/plugins/linux-cp/lcp_cli.c
-index 000d6c20d..d10557766 100644
+index 92ca0d0a9..e89afd2a7 100644
 --- a/src/plugins/linux-cp/lcp_cli.c
 +++ b/src/plugins/linux-cp/lcp_cli.c
-@@ -405,21 +405,6 @@ VLIB_CLI_COMMAND (lcp_ethertype_show_command, static) = {
+@@ -393,21 +393,6 @@ VLIB_CLI_COMMAND (lcp_ethertype_show_command, static) = {
    .function = lcp_ethertype_show_cmd,
  };
  
@@ -111,10 +111,10 @@ index 000d6c20d..d10557766 100644
  lcp_cli_init (vlib_main_t *vm)
  {
 diff --git a/src/plugins/linux-cp/lcp_interface.c b/src/plugins/linux-cp/lcp_interface.c
-index d4547c81c..d831d83f9 100644
+index cd9725c87..31864f791 100644
 --- a/src/plugins/linux-cp/lcp_interface.c
 +++ b/src/plugins/linux-cp/lcp_interface.c
-@@ -1198,17 +1198,6 @@ lcp_itf_pair_replace_end (void)
+@@ -1194,17 +1194,6 @@ lcp_itf_pair_replace_end (void)
    return (0);
  }
  
@@ -193,7 +193,7 @@ index 000000000..ab34c523f
 + * End:
 + */
 diff --git a/src/plugins/linux-cp/lcp_nl.c b/src/plugins/linux-cp/lcp_nl.c
-index 5ac6ae273..ae989b06e 100644
+index 4421311ee..9c08ac299 100644
 --- a/src/plugins/linux-cp/lcp_nl.c
 +++ b/src/plugins/linux-cp/lcp_nl.c
 @@ -92,6 +92,8 @@ typedef struct nl_main
@@ -213,7 +213,7 @@ index 5ac6ae273..ae989b06e 100644
  	}
        else
  	NL_ERROR ("Unknown status: %d", nm->nl_status);
-@@ -1020,6 +1023,41 @@ lcp_nl_close_sync_socket (nl_sock_type_t sock_type)
+@@ -1021,6 +1024,41 @@ lcp_nl_close_sync_socket (nl_sock_type_t sock_type)
      }
  }
  
@@ -341,5 +341,5 @@ index 000000000..f9005b6fc
 + * End:
 + */
 -- 
-2.39.5
+2.51.2
 

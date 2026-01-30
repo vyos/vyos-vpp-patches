@@ -1,4 +1,4 @@
-From e4993141413b203f17131ea9b80f9bf1449c8411 Mon Sep 17 00:00:00 2001
+From c7920cf9cb11a5036227db54a8c92b3b168874f5 Mon Sep 17 00:00:00 2001
 From: Fullroot <51375681+AndriiFullroot@users.noreply.github.com>
 Date: Thu, 22 Jan 2026 16:37:26 +0100
 Subject: [PATCH] T7860: IPv6 ICMP RA punt shortcut (#36)
@@ -27,10 +27,13 @@ Signed-off-by: Andrii Melnychenko <a.melnychenko@vyos.io>
 ---------
 
 Signed-off-by: Andrii Melnychenko <a.melnychenko@vyos.io>
+(cherry picked from commit e4993141413b203f17131ea9b80f9bf1449c8411)
 ---
  src/plugins/dhcp/CMakeLists.txt     |   2 +
  src/plugins/dhcp/ip6_icmp_ra_punt.c | 326 ++++++++++++++++++++++++++++
- 2 files changed, 328 insertions(+)
+ src/plugins/pppoe/pppoe_cp.c        |   2 +-
+ src/vlib/CMakeLists.txt             |   2 +-
+ 4 files changed, 330 insertions(+), 2 deletions(-)
  create mode 100644 src/plugins/dhcp/ip6_icmp_ra_punt.c
 
 diff --git a/src/plugins/dhcp/CMakeLists.txt b/src/plugins/dhcp/CMakeLists.txt
@@ -381,6 +384,32 @@ index 000000000..157c7859b
 + * eval: (c-set-style "gnu")
 + * End:
 + */
+diff --git a/src/plugins/pppoe/pppoe_cp.c b/src/plugins/pppoe/pppoe_cp.c
+index 1a4b89960..c5b682243 100644
+--- a/src/plugins/pppoe/pppoe_cp.c
++++ b/src/plugins/pppoe/pppoe_cp.c
+@@ -160,7 +160,7 @@ pppoe_show_cp_command_fn (vlib_main_t * vm,
+       vlib_cli_output (vm, "No PPPoE control plane interface configured.");
+       return 0;
+     }
+-  
++ 
+   vlib_cli_output (vm, "%-20s%-20s", "Dataplane Interface", "Control Interface");
+   vlib_cli_output (vm, "%-20s%-20s", "-------------------", "-----------------");
+ 
+diff --git a/src/vlib/CMakeLists.txt b/src/vlib/CMakeLists.txt
+index 5f0e87c48..61fd23894 100644
+--- a/src/vlib/CMakeLists.txt
++++ b/src/vlib/CMakeLists.txt
+@@ -27,7 +27,7 @@ if(VPP_ENABLE_SYSTEMD_NOTIFY)
+   # Check for systemd library
+   vpp_find_path(SYSTEMD_INCLUDE_DIR systemd/sd-daemon.h)
+   vpp_find_library(SYSTEMD_LIB NAMES systemd)
+-  
++ 
+   if(SYSTEMD_INCLUDE_DIR AND SYSTEMD_LIB)
+     message(STATUS "systemd found at ${SYSTEMD_LIB}")
+     set(SYSTEMD_NOTIFY_ENABLED 1 CACHE STRING "systemd notify enabled")
 -- 
-2.39.5
+2.51.2
 
