@@ -239,5 +239,5 @@ index dd89606ff..04e9fbdbc 100644
  	  sum0 = tcp0->checksum;
  	  sum0 = ip_csum_update (sum0, old_addr0.as_u32, new_addr0.as_u32,
 -- 
-2.39.5 (Apple Git-154)
+2.39.5
 

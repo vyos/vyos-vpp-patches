@@ -146,5 +146,5 @@ index c3a6362d4..6eb69984b 100644
    is_ipv6 = (ip_family == AF_INET) ? 0 : 1;
  
 -- 
-2.39.5 (Apple Git-154)
+2.39.5
 
