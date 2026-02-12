@@ -44,5 +44,5 @@ index b8748af15..4e517da21 100755
      CMT=$(echo ${vstring} | cut -s -d- -f3,4)
  fi
 -- 
-2.39.5 (Apple Git-154)
+2.39.5
 

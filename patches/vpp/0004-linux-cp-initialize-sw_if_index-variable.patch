@@ -28,5 +28,5 @@ index 79194c226..fe83a948a 100644
    u8 *s = NULL;
    u8 instance = xfrmnl_sa_get_reqid (sa);
 -- 
-2.39.5 (Apple Git-154)
+2.39.5
 

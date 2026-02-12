@@ -411,5 +411,5 @@ index 5f0e87c48..61fd23894 100644
      message(STATUS "systemd found at ${SYSTEMD_LIB}")
      set(SYSTEMD_NOTIFY_ENABLED 1 CACHE STRING "systemd notify enabled")
 -- 
-2.39.5 (Apple Git-154)
+2.39.5
 

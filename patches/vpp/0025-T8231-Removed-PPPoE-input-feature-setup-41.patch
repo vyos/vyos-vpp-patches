@@ -29,5 +29,5 @@ index c5b682243..1dde90211 100644
      {
        if (dp_if_index < vec_len (pem->cp_if_index_by_sw_if_index) &&
 -- 
-2.39.5 (Apple Git-154)
+2.39.5
 

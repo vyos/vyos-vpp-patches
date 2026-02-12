@@ -90,5 +90,5 @@ index cc3f327c7..c3a6362d4 100644
    get_crypto_algo (alg_name, key_len, &crypto_alg);
    if (crypto_alg == IPSEC_CRYPTO_N_ALG)
 -- 
-2.39.5 (Apple Git-154)
+2.39.5
 
