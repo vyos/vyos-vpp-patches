@@ -1,0 +1,124 @@
+From da1e99a9f94c60a4abc627549d63a4cd2f9e2097 Mon Sep 17 00:00:00 2001
+From: Denys Haryachyy <garyachy@users.noreply.github.com>
+Date: Mon, 2 Mar 2026 10:37:08 +0200
+Subject: [PATCH] linux-cp: T8309 - Fix XFRM route-mode FIB source priority
+ (#46)
+
+* linux-cp: T8309 - Fix XFRM route-mode FIB source priority
+
+XFRM route-mode used FIB_SOURCE_API (prio 0x80) for tunnel routes.
+When the same prefix is also propagated via netlink, lcp-rt (prio 0x10)
+always wins, shadowing the tunnel route and bypassing IPsec.
+
+Fix by allocating a dedicated "lcp-xfrm" FIB source with priority 0x0f
+(FIB_SOURCE_PRIORITY_HI - 1), ensuring XFRM policy routes take
+precedence over netlink-propagated routes.
+
+Test plan:
+
+  Add a conflicting static route for a prefix managed by XFRM:
+
+    $ sudo ip route add 172.17.88.0/24 via 10.1.0.1 dev eth1
+
+  Verify in VPP that the lcp-xfrm source is active:
+
+    vpp# show ip fib 172.17.88.0/24 detail
+      -> lcp-xfrm src-flags: added,contributing,active (ipsecN)
+      -> lcp-rt src-flags: added (via eth1, shadowed)
+
+    vpp# show fib source
+      -> lcp-xfrm prio:15.0
+
+  Confirm IPsec traffic uses tunnel interface, not the plain route.
+
+* ipsec: T8309 - Fix NULL dereference crash in ipsec_tun_protect_del
+
+ipsec_tun_protect_del() passes the nh pointer to the ITP_DBG2 log
+macro which calls format_ip_address(nh) before the NULL check. When
+linux-cp XFRM calls ipsec_tun_protect_del(sw_if_index, NULL) during
+tunnel teardown, this dereferences NULL+0x10 and crashes VPP with
+SIGSEGV. The crash only triggers when debug logging is enabled for the
+ipsec/tun log class (e.g. default-log-level debug in startup.conf).
+
+Fix by moving the NULL defaulting before the log statement.
+
+Test plan:
+
+  Enable debug logging and trigger tunnel teardown:
+
+    vpp# set logging class ipsec/tun level debug
+
+  Trigger XFRM SP notification that resolves to local (e.g. remove
+  an IPsec peer). Without the fix, VPP crashes with:
+
+    received signal SIGSEGV, PC <addr>, faulting address 0x10
+    #0 format_ip_address
+    #4 ipsec_tun_protect_del
+
+  With the fix, teardown completes and log shows 0.0.0.0.
+---
+ src/plugins/linux-cp/lcp_ipsec.c | 13 ++++++++++++-
+ src/vnet/ipsec/ipsec_tun.c       |  6 +++---
+ 2 files changed, 15 insertions(+), 4 deletions(-)
+
+diff --git a/src/plugins/linux-cp/lcp_ipsec.c b/src/plugins/linux-cp/lcp_ipsec.c
+index 70ee7dad5..139681032 100644
+--- a/src/plugins/linux-cp/lcp_ipsec.c
++++ b/src/plugins/linux-cp/lcp_ipsec.c
+@@ -139,6 +139,7 @@ lcp_xfrm_extract_gcm_key_and_salt (ipsec_crypto_alg_t crypto_alg, void *key,
+ /* Random seq number */
+ static u32 g_seq = 0;
+ static vlib_log_class_t lcp_xfrm_logger;
++static fib_source_t lcp_xfrm_fib_src;
+ uword *lifetime_by_sa_id;
+ static int config_bypass = 0;
+ uword *tun_idx_by_sel_daddr;
+@@ -1369,7 +1370,7 @@ fib_entry_cfg (ip_address_t *sel_daddr, u8 sel_daddr_prefix, u32 if_idx,
+   u8 fib_index = 0;
+   fib_route_path_t *rpath = NULL, path;
+   fib_prefix_t rpfx;
+-  fib_source_t fib_src = FIB_SOURCE_API;
++  fib_source_t fib_src = lcp_xfrm_fib_src;
+ 
+   clib_memset (&path, 0, sizeof (path));
+   path.frp_weight = 1;
+@@ -1898,6 +1899,16 @@ lcp_xfrm_init (vlib_main_t *vm)
+ 
+   nl_xfrm_register_vft (&lcp_xfrm_vft);
+ 
++  /*
++   * Allocate a FIB source for XFRM route-mode entries with priority
++   * higher than lcp-rt (0x10) so that IPsec policy routes take
++   * precedence over regular netlink-propagated routes, mirroring the
++   * Linux kernel behaviour where XFRM policies are evaluated before
++   * the routing table.
++   */
++  lcp_xfrm_fib_src = fib_source_allocate (
++    "lcp-xfrm", FIB_SOURCE_PRIORITY_HI - 1, FIB_SOURCE_BH_API);
++
+   lifetime_by_sa_id = hash_create (0, sizeof (uword));
+   tun_idx_by_sel_daddr = hash_create (0, sizeof (uword));
+ 
+diff --git a/src/vnet/ipsec/ipsec_tun.c b/src/vnet/ipsec/ipsec_tun.c
+index 28702bdec..5285813dd 100644
+--- a/src/vnet/ipsec/ipsec_tun.c
++++ b/src/vnet/ipsec/ipsec_tun.c
+@@ -742,12 +742,12 @@ ipsec_tun_protect_del (u32 sw_if_index, const ip_address_t *nh)
+ {
+   index_t itpi;
+ 
+-  ITP_DBG2 ("delete: %U/%U", format_vnet_sw_if_index_name, vnet_get_main (),
+-	    sw_if_index, format_ip_address, nh);
+-
+   if (NULL == nh)
+     nh = &IP_ADDR_ALL_0;
+ 
++  ITP_DBG2 ("delete: %U/%U", format_vnet_sw_if_index_name, vnet_get_main (),
++	    sw_if_index, format_ip_address, nh);
++
+   itpi = ipsec_tun_protect_find (sw_if_index, nh);
+ 
+   return ipsec_tun_protect_del_by_idx (itpi);
+-- 
+2.39.5
+
