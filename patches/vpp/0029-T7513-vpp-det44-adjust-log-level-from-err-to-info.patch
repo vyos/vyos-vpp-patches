@@ -1,0 +1,34 @@
+From 2667b8ee1932c5722d73b2e2298f95395cebe011 Mon Sep 17 00:00:00 2001
+From: Ritika Chopra <r.chopra@vyos.io>
+Date: Wed, 11 Feb 2026 19:27:25 -0700
+Subject: [PATCH] T7513: vpp: det44: adjust log level from err to info
+
+Reduce log severity in det44 plugin where non-error conditions
+were incorrectly logged as errors. This avoids misleading log
+output while preserving expected behavior.
+---
+ src/plugins/nat/det44/det44.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/src/plugins/nat/det44/det44.c b/src/plugins/nat/det44/det44.c
+index 22227ca30..59de9e4a1 100644
+--- a/src/plugins/nat/det44/det44.c
++++ b/src/plugins/nat/det44/det44.c
+@@ -361,11 +361,11 @@ det44_plugin_enable (det44_config_t c)
+ 
+   if (plugin_enabled () == 1)
+     {
+-      det44_log_err ("plugin already enabled!");
+-      return 1;
++      det44_log_info ("plugin already enabled, skipping");
++      return 0;
+     }
+ 
+-  det44_log_err ("inside %u, outside %u", c.inside_vrf_id, c.outside_vrf_id);
++  det44_log_info ("inside %u, outside %u", c.inside_vrf_id, c.outside_vrf_id);
+ 
+   dm->outside_fib_index = fib_table_find_or_create_and_lock (FIB_PROTOCOL_IP4,
+ 							     c.outside_vrf_id,
+-- 
+2.39.5
+
