@@ -33,7 +33,3 @@ Twin at `VyOS-Networks/vyos-vpp-patches`. Canonical side here.
 - Patch order matters — renumber carefully on rebase.
 - Patches encode VyOS task IDs (T7770, T7775, T8551, …) in subjects; preserve the `linux-cp-T8XXX-…` style.
 - Verify each patch still applies cleanly to the upstream VPP version pinned by the consumer build.
-
----
-
-This file is mirrored on Confluence: [`vyos/vyos-vpp-patches`](https://internal.confluence.vyos.com/wiki/spaces/VYOS/pages/818282980). The Confluence page also carries the per-repo audit data (settings, workflows, secret counts, hygiene) that complements this CLAUDE.md. Edit either side; resync via the documentation pipeline.
