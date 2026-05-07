@@ -5,7 +5,7 @@ A series of `.patch` files applied to upstream VPP (Vector Packet Processing) du
 
 ## Tech stack
 - Plain text quilt-style patches (numbered `0001-…`, `0002-…`, …) in `patches/vpp/`.
-- No build system in tree; patches are consumed by `vyos/vpp` and/or `VyOS-Networks/vyos-vpp` build pipelines.
+- No build system in tree; patches are consumed by `vyos/vpp` and/or an internal repository build pipelines.
 
 ## Build / test / run
 - Apply with `quilt push -a` (or `git am`) inside the upstream VPP source tree.
@@ -18,16 +18,13 @@ A series of `.patch` files applied to upstream VPP (Vector Packet Processing) du
 - `.github/` — minimal reusable-workflow wiring.
 
 ## Cross-repo context
-- Consumed by `vyos/vpp` (the VyOS-flavored VPP fork — C) and `VyOS-Networks/vyos-vpp` (the integration package). Together with `VyOS-Networks/vyos-stream-builds`'s `vyos-reusable-vpp-build.yml`, this provides VPP fast-path support for VyOS images.
+- Consumed by `vyos/vpp` (the VyOS-flavored VPP fork — C) and an internal repository (the integration package). Together with an internal repository's `vyos-reusable-vpp-build.yml`, this provides VPP fast-path support for VyOS images.
 - Patches touch areas like Linux-CP (`linux-cp-…`), IPsec/XFRM, PPPoE session mgmt, AEAD/AES-GCM crypto.
 
 ## Conventions
 - One feature/fix per numbered patch; keep them rebased against the upstream VPP tag the build targets.
 - Commit / PR title: `component: T12345: description` (Phorge ID mandatory).
 - Default branch `current`.
-
-## Mirror relationship
-Twin at `VyOS-Networks/vyos-vpp-patches`. Canonical side here.
 
 ## Notes for future contributors
 - Patch order matters — renumber carefully on rebase.
