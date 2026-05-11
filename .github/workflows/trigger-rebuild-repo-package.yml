@@ -15,7 +15,7 @@ jobs:
       PACKAGE_NAME: ${{ steps.package_name.outputs.PACKAGE_NAME }}
       vpp_changed: ${{ steps.filter.outputs.vpp }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Set variables
         id: package_name
