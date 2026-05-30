@@ -33,7 +33,7 @@ jobs:
 
   trigger-build-vpp:
     needs: get_repo_name
-    uses: vyos/.github/.github/workflows/trigger-and-wait-rebuild-repo-package.yml@current
+    uses: vyos/.github/.github/workflows/trigger-and-wait-rebuild-repo-package.yml@production
     with:
       branch: ${{ github.ref_name }}
       package_name: vpp  # We trigger the "vpp" package to rebuild, not "vyos-vpp-patches"
@@ -46,7 +46,7 @@ jobs:
   trigger-build-linux-kernel:
     needs: trigger-build-vpp
     if: needs.get_repo_name.outputs.vpp_changed == 'true'
-    uses: vyos/.github/.github/workflows/trigger-rebuild-repo-package.yml@current
+    uses: vyos/.github/.github/workflows/trigger-rebuild-repo-package.yml@production
     with:
       branch: ${{ github.ref_name }}
       package_name: linux-kernel  # Accel-ppp-ng (rely on VPP) can be build by this trigger
