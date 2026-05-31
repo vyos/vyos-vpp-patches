@@ -24,7 +24,7 @@ A series of `.patch` files applied to upstream VPP (Vector Packet Processing) du
 ## Conventions
 - One feature/fix per numbered patch; keep them rebased against the upstream VPP tag the build targets.
 - Commit / PR title: `component: T12345: description` (Phorge ID mandatory).
-- Default branch `current`.
+- Default branch `rolling`.
 
 ## Notes for future contributors
 - Patch order matters — renumber carefully on rebase.
