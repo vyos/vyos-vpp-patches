@@ -1,0 +1,52 @@
+From 5aeee3c9697a9b7dff1bc4c847306bf32aab0195 Mon Sep 17 00:00:00 2001
+From: Canoziia <canoziia@projectk.org>
+Date: Tue, 25 Aug 2026 22:49:56 +0800
+Subject: [PATCH] linux-cp: T9243: VPP VLAN interface keeps A/D when it's not
+ disabled
+
+---
+ src/plugins/linux-cp/lcp_interface_sync.c | 2 +-
+ src/plugins/linux-cp/lcp_router.c         | 8 ++++++++
+ 2 files changed, 9 insertions(+), 1 deletion(-)
+
+diff --git a/src/plugins/linux-cp/lcp_interface_sync.c b/src/plugins/linux-cp/lcp_interface_sync.c
+index ca7638e17..61db2569b 100644
+--- a/src/plugins/linux-cp/lcp_interface_sync.c
++++ b/src/plugins/linux-cp/lcp_interface_sync.c
+@@ -363,7 +363,7 @@ lcp_itf_interface_add_del (vnet_main_t *vnm, u32 sw_if_index, u32 is_create)
+   const vnet_sw_interface_t *sw;
+   uword is_sub;
+
+-  if (!lcp_auto_subint ())
++  if (!lcp_auto_subint () || lcp_get_netlink_processing_active ())
+     return NULL;
+
+   sw = vnet_get_sw_interface_or_null (vnm, sw_if_index);
+diff --git a/src/plugins/linux-cp/lcp_router.c b/src/plugins/linux-cp/lcp_router.c
+index 6b9b75c0c..7e3d0e283 100644
+--- a/src/plugins/linux-cp/lcp_router.c
++++ b/src/plugins/linux-cp/lcp_router.c
+@@ -420,6 +420,7 @@ lcp_router_link_add (struct rtnl_link *rl, void *ctx)
+ 	{
+ 	  u32 sub_phy_sw_if_index, sub_host_sw_if_index;
+ 	  const lcp_itf_pair_t *lip;
++	  lcp_itf_pair_t *sub_lip;
+ 	  int vlan;
+ 	  u8 *ns = 0; /* FIXME */
+
+@@ -470,6 +471,13 @@ lcp_router_link_add (struct rtnl_link *rl, void *ctx)
+ 	  lcp_itf_pair_add (sub_host_sw_if_index, sub_phy_sw_if_index,
+ 			    if_namev, rtnl_link_get_ifindex (rl),
+ 			    lip->lip_host_type, ns);
++
++	  sub_lip = lcp_itf_pair_get (
++	    lcp_itf_pair_find_by_phy (sub_phy_sw_if_index));
++	  if (sub_lip)
++	    sub_lip->lip_create_ts =
++	      ctx ? ((nl_msg_info_t *) ctx)->ts : 0;
++
+ 	  if (up)
+ 	    vnet_sw_interface_admin_up (vnet_get_main (), sub_phy_sw_if_index);
+ 	  vnet_sw_interface_admin_up (vnet_get_main (), sub_host_sw_if_index);
+--
+2.55.0
