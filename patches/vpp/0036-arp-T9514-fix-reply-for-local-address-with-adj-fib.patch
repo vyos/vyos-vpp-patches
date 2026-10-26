@@ -1,0 +1,103 @@
+From b3089f40d92952a05d31e5bbec4241de376db605 Mon Sep 17 00:00:00 2001
+From: Ruben Herold <ruben@puettmann.net>
+Date: Mon, 26 Oct 2026 16:46:32 +0100
+Subject: [PATCH] arp: T9514: fix reply for local address with adj-fib
+
+arp_dst_fib_check() tested FIB_SOURCE_ADJ on the whole entry instead of
+on the source being looked at. An entry that had an adjacency source
+was always reported as an adj-fib, even if it also had the interface
+source with the local flag. ARP requests for such an address were
+passed on without a reply.
+
+This happens when a neighbor is learned for an address which then
+becomes a local address of the interface, e.g. a VRRP failover with
+linux-cp, where the kernel keeps the neighbor entry. Test the source
+that is being looked at, so the interface source decides first.
+
+Add a unit test: a neighbor entry exists, the same address is added to
+the interface and the ARP request must be answered.
+
+Upstream change: https://gerrit.fd.io/r/c/vpp/+/47276
+Upstream issue: https://github.com/FDio/vpp/issues/3756
+
+Type: fix
+Change-Id: I1335d6612b84e6762584bf5cfcd3d83e8e0b6237
+Signed-off-by: Ruben Herold <ruben@puettmann.net>
+---
+ src/vnet/arp/arp.c    |  8 ++++----
+ test/test_neighbor.py | 40 ++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 44 insertions(+), 4 deletions(-)
+
+diff --git a/src/vnet/arp/arp.c b/src/vnet/arp/arp.c
+index 43b2a93a7..9402f4548 100644
+--- a/src/vnet/arp/arp.c
++++ b/src/vnet/arp/arp.c
+@@ -355,10 +355,10 @@ arp_dst_fib_check (const fib_node_index_t fei, fib_entry_flag_t * flags)
+   FOR_EACH_SRC_ADDED(entry, entry_src, src,
+   ({
+     *flags = fib_entry_get_flags_for_source (fei, src);
+-    if (fib_entry_is_sourced (fei, FIB_SOURCE_ADJ))
+-        return ARP_DST_FIB_ADJ;
+-      else if (FIB_ENTRY_FLAG_CONNECTED & *flags)
+-        return ARP_DST_FIB_CONN;
++    if (FIB_SOURCE_ADJ == src)
++      return ARP_DST_FIB_ADJ;
++    else if (FIB_ENTRY_FLAG_CONNECTED & *flags)
++      return ARP_DST_FIB_CONN;
+   }))
+ 
+   return ARP_DST_FIB_NONE;
+diff --git a/test/test_neighbor.py b/test/test_neighbor.py
+index 731005b5d..b068f4139 100644
+--- a/test/test_neighbor.py
++++ b/test/test_neighbor.py
+@@ -2026,6 +2026,46 @@ class ARPTestCase(VppTestCase):
+             self.pg0.remote_ip4,
+         )
+ 
++    def test_arp_forus_stale_adj(self):
++        """ARP for an address that was learned and then became local"""
++
++        #
++        # A neighbor entry exists for an address on the LAN, then the
++        # address becomes a local address of the interface (e.g. a VRRP
++        # failover with a Linux CP synced address). The entry has the
++        # interface source and the adjacency source. VPP must still
++        # answer ARP requests for the address.
++        #
++        self.pg0.generate_remote_hosts(2)
++        host = self.pg0.remote_hosts[1]
++
++        VppNeighbor(
++            self, self.pg0.sw_if_index, "00:00:00:11:22:33", host.ip4
++        ).add_vpp_config()
++        self.assertTrue(find_nbr(self, self.pg0.sw_if_index, host.ip4))
++
++        addr = VppIpInterfaceAddress(self, self.pg0, host.ip4, 24).add_vpp_config()
++
++        p = Ether(dst="ff:ff:ff:ff:ff:ff", src=self.pg0.remote_mac) / ARP(
++            op="who-has",
++            hwdst=self.pg0.local_mac,
++            hwsrc=self.pg0.remote_mac,
++            pdst=host.ip4,
++            psrc=self.pg0.remote_ip4,
++        )
++
++        rx = self.send_and_expect(self.pg0, [p], self.pg0)
++
++        self.verify_arp_resp(
++            rx[0],
++            self.pg0.local_mac,
++            self.pg0.remote_mac,
++            host.ip4,
++            self.pg0.remote_ip4,
++        )
++
++        addr.remove_vpp_config()
++
+     def test_arp_table_swap(self):
+         #
+         # Generate some hosts on the LAN
+-- 
+2.55.0
+
