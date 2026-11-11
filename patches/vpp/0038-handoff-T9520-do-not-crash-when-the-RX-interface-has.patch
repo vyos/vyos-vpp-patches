@@ -1,0 +1,54 @@
+From db69f3db4e0115f70b496b0e4f2918aa39c6d733 Mon Sep 17 00:00:00 2001
+From: najiebhaswell <25635833+najiebhaswell@users.noreply.github.com>
+Date: Tue, 3 Nov 2026 15:39:36 +0700
+Subject: [PATCH] handoff: T9520: do not crash when the RX interface has no
+ handoff config
+
+worker-handoff looks its config up by the current RX interface. With
+handoff enabled on bond members, bond-input has already set the RX
+interface to the bond. If the bond has no handoff config, its entry is
+empty: the NULL hash function is called and VPP dies with SIGSEGV at
+PC 0. Process such packets on the current thread instead.
+
+Handoff on a bond needs the config on the bond (for the lookup) and the
+feature on the members (where it runs); with this change a missing bond
+config no longer takes VPP down.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/vnet/handoff.c | 12 +++++++++++-
+ 1 file changed, 11 insertions(+), 1 deletion(-)
+
+diff --git a/src/vnet/handoff.c b/src/vnet/handoff.c
+index e9c3bb6de..b8cfb0367 100644
+--- a/src/vnet/handoff.c
++++ b/src/vnet/handoff.c
+@@ -130,6 +130,16 @@ VLIB_NODE_FN (worker_handoff_node) (vlib_main_t * vm,
+       void *data;
+ 
+       sw_if_index0 = vnet_buffer (b[0])->sw_if_index[VLIB_RX];
++
++      /* an earlier feature such as bond-input may have changed the RX
++	 interface to one without handoff config: keep the packet here */
++      if (PREDICT_FALSE (sw_if_index0 >= vec_len (hm->if_data) ||
++			 !hm->if_data[sw_if_index0].hash_fn ||
++			 !vec_len (hm->if_data[sw_if_index0].workers)))
++	{
++	  ti[0] = vm->thread_index;
++	  goto next;
++	}
+       ihd0 = vec_elt_at_index (hm->if_data, sw_if_index0);
+ 
+       /* Compute ingress LB hash */
+@@ -146,7 +156,7 @@ VLIB_NODE_FN (worker_handoff_node) (vlib_main_t * vm,
+ 
+       ti[0] = hm->first_worker_index + ihd0->workers[index0];
+ 
+-      /* next */
++    next:
+       n_left_from -= 1;
+       ti += 1;
+       b += 1;
+-- 
+2.47.3
+
