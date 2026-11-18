@@ -27,6 +27,3 @@ index 5b3a46058..3e5904454 100644
    if (rv)
      {
        NL_XFRM_ERR ("ipsec sa add %x failure(err: %d) %U -> %U", id, rv,
--- 
-2.51.0
-

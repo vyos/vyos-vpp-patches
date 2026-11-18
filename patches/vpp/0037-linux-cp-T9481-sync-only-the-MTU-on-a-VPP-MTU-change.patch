@@ -1,0 +1,152 @@
+From cef5dbf0d06288d5f9029c475dc6435b81c06183 Mon Sep 17 00:00:00 2001
+From: Alex Kudentsov <43482574+alexk37@users.noreply.github.com>
+Date: Mon, 19 Oct 2026 23:34:12 +0700
+Subject: [PATCH] linux-cp: T9481: sync only the MTU on a VPP MTU change
+
+lcp_itf_mtu_change() synced the pair with lcp_itf_pair_sync_state(),
+which copies VPP's admin state, MTU and addresses into Linux. A VPP MTU
+set on a sub-interface (or on its parent, through
+lcp_itf_pair_sync_state_hw()) therefore also pushed VPP's admin state.
+During a netlink resynchronization the link dump can import a VLAN
+while it is still down and its kernel UP is still queued; an MTU set in
+that window (on VyOS, the MTU set on a new VLAN) took the Linux VLAN
+down again, and the next dump confirmed the down state.
+
+Add lcp_itf_pair_sync_mtu(), which does only the MTU part of
+lcp_itf_pair_sync_state() (same clamp to the parent MTU, same namespace
+handling), and a walk callback for the parent case, and use them from
+lcp_itf_mtu_change(). The MTU reaches Linux at once, so a later dump
+reads it back instead of overwriting it.
+
+The MTU callback no longer re-syncs addresses or forces a
+sub-interface down when its parent is down: addresses matter only when
+an MTU below 1280 removes IPv6, and Linux does not bring a VLAN up on a
+down parent. lcp_itf_admin_state_change() still uses
+lcp_itf_pair_sync_state() and lcp_itf_pair_sync_state_hw() unchanged.
+---
+ src/plugins/linux-cp/lcp_interface_sync.c | 91 ++++++++++++++++++++++-
+ 1 file changed, 88 insertions(+), 3 deletions(-)
+
+diff --git a/src/plugins/linux-cp/lcp_interface_sync.c b/src/plugins/linux-cp/lcp_interface_sync.c
+index ab42e43b3..d5c62d8ad 100644
+--- a/src/plugins/linux-cp/lcp_interface_sync.c
++++ b/src/plugins/linux-cp/lcp_interface_sync.c
+@@ -53,7 +53,7 @@ lcp_itf_vlan_import_end (void)
+ /* helper function to copy forward all sw interface link state flags
+  * MTU, and IP addresses into their counterpart LIP interface.
+  *
+- * This is called upon MTU changes and state changes.
++ * This is called upon state changes; MTU changes use lcp_itf_pair_sync_mtu().
+  */
+ void
+ lcp_itf_pair_sync_state (lcp_itf_pair_t *lip)
+@@ -246,6 +246,90 @@ lcp_itf_admin_state_change (vnet_main_t *vnm, u32 sw_if_index, u32 flags)
+ 
+ VNET_SW_INTERFACE_ADMIN_UP_DOWN_FUNCTION (lcp_itf_admin_state_change);
+ 
++/* helper function to copy forward only the MTU of a sw interface into its
++ * counterpart LIP interface. Unlike lcp_itf_pair_sync_state(), it does not
++ * touch the link state or the addresses, so an MTU change cannot push a
++ * stale admin state into Linux.
++ */
++static void
++lcp_itf_pair_sync_mtu (lcp_itf_pair_t *lip)
++{
++  vnet_sw_interface_t *sw;
++  vnet_sw_interface_t *sup_sw;
++  int curr_ns_fd = -1;
++  int vif_ns_fd = -1;
++  u32 mtu;
++  u32 netlink_mtu;
++
++  if (!lcp_sync () || lcp_get_netlink_processing_active ())
++    return;
++
++  sw =
++    vnet_get_sw_interface_or_null (vnet_get_main (), lip->lip_phy_sw_if_index);
++  if (!sw)
++    return;
++  sup_sw =
++    vnet_get_sw_interface_or_null (vnet_get_main (), sw->sup_sw_if_index);
++  if (!sup_sw)
++    return;
++
++  if (lip->lip_namespace)
++    {
++      curr_ns_fd = clib_netns_open (NULL /* self */);
++      vif_ns_fd = clib_netns_open (lip->lip_namespace);
++      if (vif_ns_fd != -1)
++	clib_setns (vif_ns_fd);
++    }
++
++  LCP_ITF_PAIR_INFO ("sync_mtu: %U mtu %u sup-mtu %u", format_lcp_itf_pair,
++		     lip, sw->mtu[VNET_MTU_L3], sup_sw->mtu[VNET_MTU_L3]);
++
++  /* Same MTU reconciliation as lcp_itf_pair_sync_state() */
++  mtu = sw->mtu[VNET_MTU_L3];
++  if (mtu == 0)
++    mtu = sup_sw->mtu[VNET_MTU_L3];
++
++  if (sup_sw->mtu[VNET_MTU_L3] < sw->mtu[VNET_MTU_L3])
++    {
++      LCP_ITF_PAIR_WARN ("sync_mtu: %U mtu %u sup-mtu %u: "
++			 "clamping to sup-mtu to satisfy netlink",
++			 format_lcp_itf_pair, lip, sw->mtu[VNET_MTU_L3],
++			 sup_sw->mtu[VNET_MTU_L3]);
++      mtu = sup_sw->mtu[VNET_MTU_L3];
++    }
++
++  vnet_sw_interface_set_mtu (vnet_get_main (), lip->lip_phy_sw_if_index, mtu);
++  vnet_sw_interface_set_mtu (vnet_get_main (), lip->lip_host_sw_if_index, mtu);
++  if (NULL == vnet_netlink_get_link_mtu (lip->lip_vif_index, &netlink_mtu))
++    {
++      if (netlink_mtu != mtu)
++	vnet_netlink_set_link_mtu (lip->lip_vif_index, mtu);
++    }
++
++  if (vif_ns_fd != -1)
++    close (vif_ns_fd);
++
++  if (curr_ns_fd != -1)
++    {
++      clib_setns (curr_ns_fd);
++      close (curr_ns_fd);
++    }
++}
++
++static walk_rc_t
++lcp_itf_pair_walk_sync_mtu_hw_cb (vnet_main_t *vnm, u32 sw_if_index,
++				  void *arg)
++{
++  lcp_itf_pair_t *lip;
++
++  lip = lcp_itf_pair_get (lcp_itf_pair_find_by_phy (sw_if_index));
++  if (!lip)
++    return WALK_CONTINUE;
++
++  lcp_itf_pair_sync_mtu (lip);
++  return WALK_CONTINUE;
++}
++
+ static clib_error_t *
+ lcp_itf_mtu_change (vnet_main_t *vnm, u32 sw_if_index, u32 flags)
+ {
+@@ -263,7 +347,7 @@ lcp_itf_mtu_change (vnet_main_t *vnm, u32 sw_if_index, u32 flags)
+       lcp_itf_pair_t *lip;
+       lip = lcp_itf_pair_get (lcp_itf_pair_find_by_phy (sw_if_index));
+       if (lip)
+-	lcp_itf_pair_sync_state (lip);
++	lcp_itf_pair_sync_mtu (lip);
+       return NULL;
+     }
+ 
+@@ -283,7 +367,8 @@ lcp_itf_mtu_change (vnet_main_t *vnm, u32 sw_if_index, u32 flags)
+ 		    format_vnet_sw_if_index_name, vnm, si->sw_if_index,
+ 		    format_vnet_sw_if_index_name, vnm, hi->sw_if_index);
+ 
+-  lcp_itf_pair_sync_state_hw (hi);
++  vnet_hw_interface_walk_sw (vnm, hi->hw_if_index,
++			     lcp_itf_pair_walk_sync_mtu_hw_cb, NULL);
+ 
+   return NULL;
+ }

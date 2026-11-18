@@ -29,6 +29,3 @@ index 9c71ae9e6..fe0b497cd 100644
  	# for extras/scripts/checkstyle.sh
  	# TODO: remove once ubuntu 20.04 is deprecated and extras/scripts/checkstyle.sh is upgraded to -15
  	export CLANG_FORMAT_VER=15
--- 
-2.51.0
-

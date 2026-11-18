@@ -358,6 +358,3 @@ index fb96159b4..99bf9650a 100644
    vnet_buffer (b)->ip.rx_sw_if_index = vnet_buffer (b)->sw_if_index[VLIB_RX];
    if (is_receive_dpo)
      {
--- 
-2.51.0
-

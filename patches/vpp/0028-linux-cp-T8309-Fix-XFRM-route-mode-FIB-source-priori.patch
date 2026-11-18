@@ -119,6 +119,3 @@ index 28702bdec..5285813dd 100644
    itpi = ipsec_tun_protect_find (sw_if_index, nh);
  
    return ipsec_tun_protect_del_by_idx (itpi);
--- 
-2.51.0
-

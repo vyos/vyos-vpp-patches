@@ -23,6 +23,3 @@ index 593ea4e98..9c71ae9e6 100644
  
  LIBFFI=libffi6 # works on all but 20.04 and debian-testing
  ifeq ($(OS_VERSION_ID),24.04)
--- 
-2.51.0
-

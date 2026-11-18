@@ -27,6 +27,3 @@ index 79194c226..fe83a948a 100644
    int rv;
    u8 *s = NULL;
    u8 instance = xfrmnl_sa_get_reqid (sa);
--- 
-2.51.0
-

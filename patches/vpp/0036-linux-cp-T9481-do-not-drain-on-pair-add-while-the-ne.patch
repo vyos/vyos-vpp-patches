@@ -1,0 +1,56 @@
+From 2886e0b87787651fe97b8d367b8ea0064d35680a Mon Sep 17 00:00:00 2001
+From: Alex Kudentsov <43482574+alexk37@users.noreply.github.com>
+Date: Fri, 16 Oct 2026 23:20:21 +0700
+Subject: [PATCH] linux-cp: T9481: do not drain on pair add while the netlink
+ socket is closed
+
+lcp_nl_pair_add_cb() calls lcp_nl_drain_messages() on every LCP pair add
+made outside netlink processing. During a resynchronization
+nl_route_process() closes the notification socket (lcp_nl_close_socket(),
+sk_route = NULL) and suspends for sync_attempt_delay_ms before it opens
+the socket again. A pair add in that window makes lcp_nl_drain_messages()
+return -NLE_BAD_SOCK, which it treats as a read error and signals
+NL_EVENT_ERR without logging it. The process node is suspended, so the
+event stays pending and is returned by the first
+vlib_process_wait_for_event_or_clock() after the link dump. The round
+then jumps to sync_later: no address, neighbor or route dump, the newly
+opened notification socket is closed again about 1 ms after it was
+opened, and every kernel notification sent until the next round is lost.
+
+On VyOS a bond rebuild re-creates the bond's LCP pair inside that window,
+so the first round after a netlink overflow always aborted, and a VLAN
+that came up after the first link dump lost its UP notification.
+
+Return -NLE_BAD_SOCK from lcp_nl_drain_messages() without signalling
+NL_EVENT_ERR when sk_route is NULL. There is nothing to drain without a
+socket, and errors on an open socket still signal NL_EVENT_ERR as before.
+The pair add callback is the only caller that can reach a closed socket:
+nl_route_read_cb() runs only while the socket is polled, and
+lcp_nl_close_socket() stops polling before it frees the socket.
+---
+ src/plugins/linux-cp/lcp_nl.c | 11 +++++++++--
+ 1 file changed, 9 insertions(+), 2 deletions(-)
+
+diff --git a/src/plugins/linux-cp/lcp_nl.c b/src/plugins/linux-cp/lcp_nl.c
+index da8edd48a..c181a6461 100644
+--- a/src/plugins/linux-cp/lcp_nl.c
++++ b/src/plugins/linux-cp/lcp_nl.c
+@@ -788,9 +788,16 @@ lcp_nl_drain_messages (void)
+   int err;
+   nl_main_t *nm = &nl_main;
+ 
++  /* The notification socket is closed while a synchronization waits for
++   * its next attempt. There is nothing to drain then. Do not signal
++   * NL_EVENT_ERR: the process node is suspended and would only see the
++   * event after the link dump, aborting that synchronization.
++   */
++  if (!nm->sk_route)
++    return -NLE_BAD_SOCK;
++
+   /* Read until there's an error */
+-  while ((err = nm->sk_route ? nl_recvmsgs_default (nm->sk_route) :
+-			       -NLE_BAD_SOCK) > -1)
++  while ((err = nl_recvmsgs_default (nm->sk_route)) > -1)
+     ;
+ 
+   /* If there was an error other then EAGAIN, signal process node */

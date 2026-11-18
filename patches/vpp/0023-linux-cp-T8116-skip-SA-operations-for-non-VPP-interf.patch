@@ -46,6 +46,3 @@ index 6eb69984b..e975c769f 100644
    if (!dir)
      flags |= IPSEC_SA_FLAG_IS_INBOUND;
  
--- 
-2.51.0
-

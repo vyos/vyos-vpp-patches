@@ -42,6 +42,3 @@ index f0199c929..dbc10ee22 100644
    s = format (s, "%Upromiscuous: unicast %s all-multicast %s\n",
  	      format_white_space, indent + 2,
  	      rte_eth_promiscuous_get (xd->port_id) ? "on" : "off",
--- 
-2.51.0
-
