@@ -43,6 +43,3 @@ index b8748af15..4e517da21 100755
  else
      CMT=$(echo ${vstring} | cut -s -d- -f3,4)
  fi
--- 
-2.51.0
-

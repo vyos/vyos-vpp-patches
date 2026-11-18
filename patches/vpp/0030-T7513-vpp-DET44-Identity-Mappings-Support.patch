@@ -712,6 +712,3 @@ index 04e9fbdbc..0b5335bf4 100644
        key0.ext_host_addr = ip0->src_address;
        key0.ext_host_port = tcp0->src;
        key0.out_port = tcp0->dst;
--- 
-2.51.0
-

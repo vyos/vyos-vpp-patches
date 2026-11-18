@@ -48,6 +48,3 @@ index 2d2252d24..37d0977bb 100644
  VLIB_NODE_FN (policer_output_node)
  (vlib_main_t *vm, vlib_node_runtime_t *node, vlib_frame_t *frame)
  {
--- 
-2.51.0
-

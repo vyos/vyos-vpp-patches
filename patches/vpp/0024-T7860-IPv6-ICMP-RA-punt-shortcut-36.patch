@@ -410,6 +410,3 @@ index 5f0e87c48..61fd23894 100644
    if(SYSTEMD_INCLUDE_DIR AND SYSTEMD_LIB)
      message(STATUS "systemd found at ${SYSTEMD_LIB}")
      set(SYSTEMD_NOTIFY_ENABLED 1 CACHE STRING "systemd notify enabled")
--- 
-2.51.0
-

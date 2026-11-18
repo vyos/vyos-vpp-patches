@@ -172,6 +172,3 @@ index 9c5bb88c6..e7148584a 100644
    if (status < 0)
      {
        NL_ERROR ("Expiry send failed");
--- 
-2.51.0
-

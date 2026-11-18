@@ -29,6 +29,3 @@ index 22227ca30..59de9e4a1 100644
  
    dm->outside_fib_index = fib_table_find_or_create_and_lock (FIB_PROTOCOL_IP4,
  							     c.outside_vrf_id,
--- 
-2.51.0
-

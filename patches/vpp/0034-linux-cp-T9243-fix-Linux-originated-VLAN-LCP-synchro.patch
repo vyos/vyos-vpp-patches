@@ -1,0 +1,151 @@
+From 64e7d880a4f5c460f6e9116a09283ca584d14ee7 Mon Sep 17 00:00:00 2001
+From: Ritika Chopra <r.chopra@vyos.io>
+Date: Fri, 2 Oct 2026 12:24:38 -0700
+Subject: [PATCH] linux-cp: T9243: fix Linux-originated VLAN LCP
+ synchronization
+
+Based on https://github.com/vyos/vyos-vpp-patches/pull/55
+(Authored-by: @canoziia)
+
+When importing a Linux-created VLAN, creating its VPP physical
+subinterface invokes the VPP subinterface-add callback. The callback
+creates the host-side subinterface and LIP before the netlink import
+handler performs the same work. This causes the handler's host-side
+subinterface creation to fail since the sub-interface has already
+been created by the callback and returns early without bringing the
+port up. The VPP callback takes ownership of the
+host-subinterface and LIP creation, instead of the import handler.
+
+This issue has been fixed by tracking the parent and VLAN being
+imported and skipping automatic LIP creation via the callback for
+that VLAN . This lets the Linux import handler create the host-side
+subinterface and LIP.
+
+Also, the imported LIP's creation timestamp is backdated and set to the
+RTM_NEWLINK reception timestamp. This allows later-received queued
+link updates to pass the LIP timestamp check even when they are received
+before LIP creation is completed. Otherwise, these messages received after
+RTM_NEWLINK event but before the LIP creation completion time, were
+rejected being considered as early messages.
+---
+ src/plugins/linux-cp/lcp_interface.h      |  3 +++
+ src/plugins/linux-cp/lcp_interface_sync.c | 33 +++++++++++++++++++++++
+ src/plugins/linux-cp/lcp_router.c         | 18 +++++++++++--
+ 3 files changed, 52 insertions(+), 2 deletions(-)
+
+diff --git a/src/plugins/linux-cp/lcp_interface.h b/src/plugins/linux-cp/lcp_interface.h
+index 8cf6d3f4d..64f282a46 100644
+--- a/src/plugins/linux-cp/lcp_interface.h
++++ b/src/plugins/linux-cp/lcp_interface.h
+@@ -116,6 +116,9 @@ extern int lcp_itf_pair_create (u32 phy_sw_if_index, u8 *host_if_name,
+ 				lip_host_type_t host_if_type, u8 *ns,
+ 				u32 *host_sw_if_indexp);
+ 
++void lcp_itf_vlan_import_begin (u32 parent_sw_if_index, u32 sub_id);
++void lcp_itf_vlan_import_end (void);
++
+ /**
+  * Delete a LCP_ITF_PAIR
+  */
+diff --git a/src/plugins/linux-cp/lcp_interface_sync.c b/src/plugins/linux-cp/lcp_interface_sync.c
+index ca7638e17..ab42e43b3 100644
+--- a/src/plugins/linux-cp/lcp_interface_sync.c
++++ b/src/plugins/linux-cp/lcp_interface_sync.c
+@@ -22,6 +22,34 @@
+ #include <vppinfra/linux/netns.h>
+ #include <plugins/linux-cp/lcp_interface.h>
+ 
++typedef struct
++{
++  u32 parent_sw_if_index;
++  u32 sub_id;
++  u8 active;
++} lcp_vlan_import_t;
++
++static lcp_vlan_import_t lcp_vlan_import = {
++  .parent_sw_if_index = INDEX_INVALID,
++  .sub_id = INDEX_INVALID,
++};
++
++void
++lcp_itf_vlan_import_begin (u32 parent_sw_if_index, u32 sub_id)
++{
++  lcp_vlan_import.parent_sw_if_index = parent_sw_if_index;
++  lcp_vlan_import.sub_id = sub_id;
++  lcp_vlan_import.active = 1;
++}
++
++void
++lcp_itf_vlan_import_end (void)
++{
++  lcp_vlan_import.active = 0;
++  lcp_vlan_import.parent_sw_if_index = INDEX_INVALID;
++  lcp_vlan_import.sub_id = INDEX_INVALID;
++}
++
+ /* helper function to copy forward all sw interface link state flags
+  * MTU, and IP addresses into their counterpart LIP interface.
+  *
+@@ -374,6 +402,11 @@ lcp_itf_interface_add_del (vnet_main_t *vnm, u32 sw_if_index, u32 is_create)
+   if (!is_sub)
+     return NULL;
+ 
++  if (is_create && lcp_vlan_import.active &&
++      sw->sup_sw_if_index == lcp_vlan_import.parent_sw_if_index &&
++      sw->sub.id == lcp_vlan_import.sub_id)
++    return NULL;
++
+   LCP_ITF_PAIR_DBG ("interface_%s: sw %U parent %U", is_create ? "add" : "del",
+ 		    format_vnet_sw_if_index_name, vnet_get_main (),
+ 		    sw->sw_if_index, format_vnet_sw_if_index_name,
+diff --git a/src/plugins/linux-cp/lcp_router.c b/src/plugins/linux-cp/lcp_router.c
+index 6b9b75c0c..2652da2cd 100644
+--- a/src/plugins/linux-cp/lcp_router.c
++++ b/src/plugins/linux-cp/lcp_router.c
+@@ -420,7 +420,9 @@ lcp_router_link_add (struct rtnl_link *rl, void *ctx)
+ 	{
+ 	  u32 sub_phy_sw_if_index, sub_host_sw_if_index;
+ 	  const lcp_itf_pair_t *lip;
++	  lcp_itf_pair_t *sub_lip;
+ 	  int vlan;
++	  int rv;
+ 	  u8 *ns = 0; /* FIXME */
+ 
+ 	  lip = lcp_itf_pair_get (lipi);
+@@ -428,8 +430,12 @@ lcp_router_link_add (struct rtnl_link *rl, void *ctx)
+ 	  vlan = rtnl_link_vlan_get_id (rl);
+ 
+ 	  /* create the vlan interface on the parent phy */
+-	  if (vnet_create_sub_interface (lip->lip_phy_sw_if_index, vlan, 18, 0,
+-					 vlan, &sub_phy_sw_if_index))
++	  lcp_itf_vlan_import_begin (lip->lip_phy_sw_if_index, vlan);
++	  rv = vnet_create_sub_interface (lip->lip_phy_sw_if_index, vlan, 18, 0,
++				  vlan, &sub_phy_sw_if_index);
++	  lcp_itf_vlan_import_end ();
++
++	  if (rv)
+ 	    {
+ 	      LCP_ROUTER_INFO ("failed create phy vlan: %s on %U",
+ 			       rtnl_link_get_name (rl),
+@@ -449,6 +455,7 @@ lcp_router_link_add (struct rtnl_link *rl, void *ctx)
+ 			       rtnl_link_get_name (rl),
+ 			       format_vnet_sw_if_index_name, vnet_get_main (),
+ 			       lip->lip_host_sw_if_index);
++	      vnet_delete_sub_interface (sub_phy_sw_if_index);
+ 	      return;
+ 	    }
+ 
+@@ -470,6 +477,13 @@ lcp_router_link_add (struct rtnl_link *rl, void *ctx)
+ 	  lcp_itf_pair_add (sub_host_sw_if_index, sub_phy_sw_if_index,
+ 			    if_namev, rtnl_link_get_ifindex (rl),
+ 			    lip->lip_host_type, ns);
++
++	  sub_lip = lcp_itf_pair_get (
++	    lcp_itf_pair_find_by_phy (sub_phy_sw_if_index));
++	  if (sub_lip && ctx)
++	    sub_lip->lip_create_ts =
++	      ((nl_msg_info_t *) ctx)->ts;
++
+ 	  if (up)
+ 	    vnet_sw_interface_admin_up (vnet_get_main (), sub_phy_sw_if_index);
+ 	  vnet_sw_interface_admin_up (vnet_get_main (), sub_host_sw_if_index);

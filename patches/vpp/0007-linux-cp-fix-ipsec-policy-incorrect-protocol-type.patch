@@ -50,6 +50,3 @@ index c847e699f..ff6e79649 100644
    is_ipv6 = (fam == AF_INET6) ? 1 : 0;
  
    lcp_xfrm_mk_ipaddr (sel_dst, &sel_daddr);
--- 
-2.51.0
-

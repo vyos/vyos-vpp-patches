@@ -176,6 +176,3 @@ index ecb8d7f4c..c895aba3c 100644
 +}
 +
  #include <pppoe/pppoe.api_test.c>
--- 
-2.51.0
-

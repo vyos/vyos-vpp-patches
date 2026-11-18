@@ -196,6 +196,3 @@ index 95e1adc35..4421311ee 100644
  	  /* Wait some time before next synchronization attempt. Allows to
  	   * reduce the number of failed attempts that stall the main thread by
  	   * waiting out the notification storm
--- 
-2.51.0
-
