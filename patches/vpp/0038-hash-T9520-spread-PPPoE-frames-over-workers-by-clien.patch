@@ -1,0 +1,121 @@
+From b9c7266e1c1ce3f5edfe2f859445c5572d3e5663 Mon Sep 17 00:00:00 2001
+From: najiebhaswell <25635833+najiebhaswell@users.noreply.github.com>
+Date: Tue, 3 Nov 2026 15:39:36 +0700
+Subject: [PATCH] hash: T9520: spread PPPoE frames over workers by client MAC
+
+handoff-eth only looks at IPv4, IPv6 and MPLS behind the Ethernet and
+VLAN headers. PPPoE session and discovery frames, untagged, 802.1Q or
+QinQ, all got the ethertype as key, so "set interface handoff" sent
+every subscriber to the same worker and could not spread upstream PPPoE
+on NICs whose RSS cannot hash it.
+
+Use the client (source) MAC for PPPoE frames, so subscribers spread
+over the workers and each one stays on one worker (no reordering within
+a session, and discovery and session frames of a client land together).
+
+With "symmetrical" handoff the key is the source MAC XOR the destination
+MAC, so both directions between a client and a concentrator land on the
+same worker when VPP forwards PPPoE between them. On a PPPoE server the
+destination is always its own MAC, so subscribers still spread by
+client MAC (only a broadcast PADI keys differently from the PADR).
+
+Tested on VPP 26.10 with two ConnectX-5 ports (RSS puts all PPPoE on RX
+queue 0): with handoff on both ports pppoe-input runs on all 12 workers,
+46-byte upstream 12 Mpps forwarded with 0.14% loss; without this change
+handoff kept everything on one worker. The receiving worker still takes
+RX and the handoff of all PPPoE of its port, which caps a port at
+roughly 6-8 Mpps; NIC RSS over PPPoE (E810 with the comms DDP package)
+goes further where available.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/vnet/hash/handoff_eth.c | 48 +++++++++++++++++++++++++++++++++++++
+ 1 file changed, 48 insertions(+)
+
+diff --git a/src/vnet/hash/handoff_eth.c b/src/vnet/hash/handoff_eth.c
+index dc8db2ac4..2087275f8 100644
+--- a/src/vnet/hash/handoff_eth.c
++++ b/src/vnet/hash/handoff_eth.c
+@@ -129,6 +129,30 @@ bottom_lbl_found:
+ 
+ }
+ 
++static inline u64
++pppoe_get_key (ethernet_header_t *h0)
++{
++  u64 hash_key = 0;
++
++  /* the IP header is behind PPPoE/PPP: keep each subscriber (client MAC)
++     on one worker */
++  clib_memcpy_fast (&hash_key, h0->src_address, 6);
++  return hash_key;
++}
++
++static inline u64
++pppoe_get_sym_key (ethernet_header_t *h0)
++{
++  u64 src = 0, dst = 0;
++
++  /* both directions of a client/concentrator pair give the same key; on a
++     PPPoE server the destination is always its own MAC, so subscribers
++     still spread by client MAC */
++  clib_memcpy_fast (&src, h0->src_address, 6);
++  clib_memcpy_fast (&dst, h0->dst_address, 6);
++  return src ^ dst;
++}
++
+ static inline u64
+ eth_get_sym_key (ethernet_header_t * h0)
+ {
+@@ -153,6 +177,11 @@ eth_get_sym_key (ethernet_header_t * h0)
+     {
+       hash_key = mpls_get_key ((mpls_unicast_header_t *) (h0 + 1));
+     }
++  else if (h0->type == clib_host_to_net_u16 (ETHERNET_TYPE_PPPOE_SESSION) ||
++	   h0->type == clib_host_to_net_u16 (ETHERNET_TYPE_PPPOE_DISCOVERY))
++    {
++      hash_key = pppoe_get_sym_key (h0);
++    }
+   else
+     if (PREDICT_FALSE
+ 	((h0->type == clib_host_to_net_u16 (ETHERNET_TYPE_VLAN))
+@@ -182,6 +211,13 @@ eth_get_sym_key (ethernet_header_t * h0)
+ 	{
+ 	  hash_key = mpls_get_key ((mpls_unicast_header_t *) (outer + 1));
+ 	}
++      else if (outer->type ==
++		 clib_host_to_net_u16 (ETHERNET_TYPE_PPPOE_SESSION) ||
++	       outer->type ==
++		 clib_host_to_net_u16 (ETHERNET_TYPE_PPPOE_DISCOVERY))
++	{
++	  hash_key = pppoe_get_sym_key (h0);
++	}
+       else
+ 	{
+ 	  hash_key = outer->type;
+@@ -212,6 +248,11 @@ eth_get_key (ethernet_header_t * h0)
+     {
+       hash_key = mpls_get_key ((mpls_unicast_header_t *) (h0 + 1));
+     }
++  else if (h0->type == clib_host_to_net_u16 (ETHERNET_TYPE_PPPOE_SESSION) ||
++	   h0->type == clib_host_to_net_u16 (ETHERNET_TYPE_PPPOE_DISCOVERY))
++    {
++      hash_key = pppoe_get_key (h0);
++    }
+   else if ((h0->type == clib_host_to_net_u16 (ETHERNET_TYPE_VLAN)) ||
+ 	   (h0->type == clib_host_to_net_u16 (ETHERNET_TYPE_DOT1AD)))
+     {
+@@ -232,6 +273,13 @@ eth_get_key (ethernet_header_t * h0)
+ 	{
+ 	  hash_key = mpls_get_key ((mpls_unicast_header_t *) (outer + 1));
+ 	}
++      else if (outer->type ==
++		 clib_host_to_net_u16 (ETHERNET_TYPE_PPPOE_SESSION) ||
++	       outer->type ==
++		 clib_host_to_net_u16 (ETHERNET_TYPE_PPPOE_DISCOVERY))
++	{
++	  hash_key = pppoe_get_key (h0);
++	}
+       else
+ 	{
+ 	  hash_key = outer->type;
